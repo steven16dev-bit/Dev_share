@@ -1,0 +1,69 @@
+Si tu parles de WebLogic WLST et de la création d’une instance (Managed Server), voici le principe.
+1. Connexion au domaine
+Depuis le serveur WebLogic :
+connect('weblogic', 'MotDePasse', 't3://localhost:7001')
+2. Créer un Managed Server
+edit()
+startEdit()
+
+cd('/')
+create('ManagedServer1', 'Server')
+
+cd('/Servers/ManagedServer1')
+set('ListenAddress', '192.168.1.10')
+set('ListenPort', 8001)
+
+activate()
+Cela crée un serveur :
+Paramètre
+Valeur
+Nom
+ManagedServer1
+Adresse
+192.168.1.10
+Port
+8001
+Type
+Managed Server
+3. Associer le serveur à une Machine
+Si tu as déjà une Machine WebLogic :
+edit()
+startEdit()
+
+cd('/Machines/Machine1/NodeManager/ManagedServer1')
+Mais attention : la création du Managed Server et son association à une Machine sont deux opérations différentes.
+Une configuration plus complète est généralement :
+connect('weblogic', 'MotDePasse', 't3://192.168.1.10:7001')
+
+edit()
+startEdit()
+
+cd('/')
+server = create('ManagedServer1', 'Server')
+
+server.setListenAddress('192.168.1.10')
+server.setListenPort(8001)
+
+activate()
+
+disconnect()
+exit()
+4. Démarrer le Managed Server
+Avec WLST :
+connect('weblogic', 'MotDePasse', 't3://192.168.1.10:7001')
+
+start('ManagedServer1', 'Server')
+
+disconnect()
+exit()
+Ou avec le script startManagedWebLogic.cmd :
+startManagedWebLogic.cmd ManagedServer1 http://192.168.1.10:7001
+Si ton problème est create('Server') qui ne fonctionne pas
+Dans ton cas, puisque tu travaillais précédemment sur WLST / création d'instance et Machine WebLogic, il faut vérifier notamment :
+que tu es connecté au AdminServer ;
+que tu fais edit() puis startEdit() ;
+que le nom de la Machine existe réellement ;
+que le Node Manager est configuré ;
+que l'adresse IP/hostname utilisé par WLST est résolvable ;
+que tu n'essaies pas de créer une instance avec une commande WLST destinée à un autre objet.
+Si tu me donnes la commande WLST exacte que tu utilises + le message d'erreur complet, je peux te corriger le script ligne par ligne.

@@ -1,0 +1,343 @@
+Pour Next.js 16.3.1 + React 19.2.8 + TypeScript 5.9.3, voici une liste adaptée à une installation offline sur Windows x64.
+Next.js 16.3.1 demande Node.js >= 20.9.0. Ses dépendances directes sont @next/env, @swc/helpers, baseline-browser-mapping, caniuse-lite, postcss et styled-jsx. �
+GitHub +1
+1. Packages principaux
+https://registry.npmjs.org/next/-/next-16.3.1.tgz
+https://registry.npmjs.org/react/-/react-19.2.8.tgz
+https://registry.npmjs.org/react-dom/-/react-dom-19.2.8.tgz
+https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz
+https://registry.npmjs.org/@types/node/-/node-22.20.1.tgz
+https://registry.npmjs.org/@types/react/-/react-19.2.18.tgz
+https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.2.tgz
+2. Dépendances de Next.js
+https://registry.npmjs.org/@next/env/-/env-16.3.1.tgz
+https://registry.npmjs.org/@swc/helpers/-/helpers-0.5.23.tgz
+https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz
+https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.11.12.tgz
+https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001806.tgz
+https://registry.npmjs.org/postcss/-/postcss-8.5.23.tgz
+https://registry.npmjs.org/nanoid/-/nanoid-3.3.17.tgz
+https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz
+https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz
+https://registry.npmjs.org/styled-jsx/-/styled-jsx-5.1.6.tgz
+https://registry.npmjs.org/client-only/-/client-only-0.0.1.tgz
+Les dépendances de postcss, styled-jsx et @swc/helpers confirment notamment nanoid, picocolors, source-map-js, client-only et tslib. �
+GitHub +1
+3. Dépendance React
+react-dom utilise également scheduler. �
+GitHub
+https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz
+Et @types/node utilise :
+https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz
+�
+him.is Git
+4. SWC pour Windows 64 bits
+Celui-ci est important. Si ton PC est Windows x64 :
+https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-16.3.1.tgz
+Next.js 16.3.1 fournit bien ce package spécifique Windows x64. �
+GitHub +1
+Tu n'as pas besoin de télécharger les SWC Linux/macOS si ton application sera uniquement utilisée sur ce PC Windows.
+5. Structure de téléchargement
+Je te conseille :
+D:\NextOffline\
+│
+└── packages\
+    ├── next-16.3.1.tgz
+    ├── react-19.2.8.tgz
+    ├── react-dom-19.2.8.tgz
+    ├── typescript-5.9.3.tgz
+    ├── env-16.3.1.tgz
+    ├── helpers-0.5.23.tgz
+    ├── tslib-2.8.1.tgz
+    ├── baseline-browser-mapping-2.11.12.tgz
+    ├── caniuse-lite-1.0.30001806.tgz
+    ├── postcss-8.5.23.tgz
+    ├── nanoid-3.3.17.tgz
+    ├── picocolors-1.1.1.tgz
+    ├── source-map-js-1.2.1.tgz
+    ├── styled-jsx-5.1.6.tgz
+    ├── client-only-0.0.1.tgz
+    ├── scheduler-0.27.0.tgz
+    ├── @types-node-22.20.1.tgz
+    ├── @types-react-19.2.18.tgz
+    ├── @types-react-dom-19.2.2.tgz
+    ├── csstype-3.2.3.tgz
+    ├── undici-types-6.21.0.tgz
+    └── swc-win32-x64-msvc-16.3.1.tgz
+Pour @types/react, il faut également csstype, car @types/react en dépend. �
+GitHub
+https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz
+6. Important : ne télécharge pas sharp
+Pour une application Next.js basique, tu peux laisser sharp de côté. Next.js le déclare comme dépendance optionnelle ; il devient surtout pertinent pour certains traitements d'images en production. �
+GitHub
+7. Installation offline
+Une fois les fichiers téléchargés, on pourra créer :
+D:\NextOffline\mon-app
+puis installer sans accès Internet.
+Mais je te recommande une étape supplémentaire : ne pas installer les .tgz un par un. On peut créer un package.json précis :
+{
+  "dependencies": {
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
+puis faire l'installation offline avec les archives.
+Attention : les numéros de versions des dépendances transitoires ci-dessus correspondent à un arbre de dépendances concret ; si tu mélanges avec d'autres versions, npm peut chercher d'autres archives. Les dépendances exactes de Next 16.3.1 sont confirmées par un package-lock.json utilisant cette version. �
+GitHub
+Si tu veux, je peux maintenant te donner �⁠la procédure complète Windows, commande par commande, pour transformer ces .tgz en projet Next.js 16.3.1 fonctionnel sans aucune connexion npm.
+
+
+-----
+
+Oui. Je te propose de partir sur Next.js 16.3.1 + React 19 + TypeScript, avec Windows x64, et de faire une installation réellement hors ligne.
+J'ai vérifié le package officiel : Next.js 16.3.1 demande Node.js >=20.9.0, et ses dépendances directes sont bien @next/env, @swc/helpers, baseline-browser-mapping, caniuse-lite, postcss et styled-jsx. �
+GitHub +1
+Correction importante par rapport à ma réponse précédente : les versions des dépendances comme caniuse-lite sont soumises aux contraintes de résolution. Pour une installation offline fiable, il vaut mieux utiliser un package-lock.json figé plutôt que choisir arbitrairement la dernière version de chaque sous-dépendance.
+1. Vérifier Node.js
+Sur le PC entreprise :
+node -v
+npm -v
+node -p "process.platform + '-' + process.arch"
+Il faut au minimum :
+node >= 20.9.0
+win32-x64
+2. Télécharger les packages depuis le navigateur
+Crée :
+D:\NextOffline\
+D:\NextOffline\packages\
+Puis télécharge les fichiers suivants directement dans packages.
+Next.js
+https://registry.npmjs.org/next/-/next-16.3.1.tgz
+React
+https://registry.npmjs.org/react/-/react-19.2.0.tgz
+https://registry.npmjs.org/react-dom/-/react-dom-19.2.0.tgz
+TypeScript
+https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz
+Types Node
+https://registry.npmjs.org/@types/node/-/node-22.15.21.tgz
+Types React
+https://registry.npmjs.org/@types/react/-/react-19.1.0.tgz
+Types React DOM
+https://registry.npmjs.org/@types/react-dom/-/react-dom-19.1.0.tgz
+3. Dépendances de Next.js
+Pour Next.js 16.3.1, les dépendances directes sont :
+https://registry.npmjs.org/@next/env/-/env-16.3.1.tgz
+https://registry.npmjs.org/@swc/helpers/-/helpers-0.5.23.tgz
+https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.9.19.tgz
+https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001718.tgz
+https://registry.npmjs.org/postcss/-/postcss-8.5.3.tgz
+https://registry.npmjs.org/styled-jsx/-/styled-jsx-5.1.6.tgz
+La structure officielle de Next.js 16.3.1 confirme ces six dépendances directes. �
+GitHub
+4. Dépendances supplémentaires
+@swc/helpers dépend de tslib.
+https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz
+postcss nécessite notamment :
+https://registry.npmjs.org/nanoid/-/nanoid-3.3.8.tgz
+https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz
+https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz
+Pour les types :
+https://registry.npmjs.org/csstype/-/csstype-3.1.3.tgz
+https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz
+Et React DOM utilise :
+https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz
+5. SWC Windows x64
+C'est très important pour Next.js.
+Pour Windows x64 :
+https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-16.3.1.tgz
+Next.js déclare plusieurs packages SWC spécifiques aux plateformes, mais pour ton PC Windows x64, c'est celui-ci qu'il faut. �
+GitHub
+Tu n'as donc pas besoin de télécharger :
+swc-linux
+swc-darwin
+swc-win32-arm64
+6. Exemple de structure
+Après téléchargement :
+D:\NextOffline\
+│
+├── packages\
+│   ├── next-16.3.1.tgz
+│   ├── react-19.2.0.tgz
+│   ├── react-dom-19.2.0.tgz
+│   ├── typescript-5.9.3.tgz
+│   │
+│   ├── env-16.3.1.tgz
+│   ├── helpers-0.5.23.tgz
+│   ├── baseline-browser-mapping-2.9.19.tgz
+│   ├── caniuse-lite-1.0.30001718.tgz
+│   ├── postcss-8.5.3.tgz
+│   ├── styled-jsx-5.1.6.tgz
+│   │
+│   ├── tslib-2.8.1.tgz
+│   ├── nanoid-3.3.8.tgz
+│   ├── picocolors-1.1.1.tgz
+│   ├── source-map-js-1.2.1.tgz
+│   ├── csstype-3.1.3.tgz
+│   ├── undici-types-6.21.0.tgz
+│   ├── scheduler-0.27.0.tgz
+│   │
+│   └── swc-win32-x64-msvc-16.3.1.tgz
+│
+└── mon-app\
+7. Créer package.json
+Dans :
+D:\NextOffline\mon-app\
+crée :
+{
+  "name": "mon-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "16.3.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.21",
+    "@types/react": "19.1.0",
+    "@types/react-dom": "19.1.0",
+    "typescript": "5.9.3"
+  }
+}
+8. First App
+Crée :
+D:\NextOffline\mon-app\
+│
+├── app\
+│   ├── layout.tsx
+│   └── page.tsx
+│
+├── public\
+│
+├── package.json
+└── tsconfig.json
+app/layout.tsx
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="fr">
+      <body>{children}</body>
+    </html>
+  );
+}
+app/page.tsx
+export default function Home() {
+  return (
+    <main>
+      <h1>Bonjour Next.js !</h1>
+
+      <p>
+        Première application Next.js 16.3.1
+        avec TypeScript.
+      </p>
+    </main>
+  );
+}
+9. tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+Et :
+D:\NextOffline\mon-app\next-env.d.ts
+avec :
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+10. Installation offline
+C'est ici qu'il faut être prudent.
+Ne fais pas simplement :
+npm install --offline
+car npm cherchera les packages dans son cache npm et non simplement dans D:\NextOffline\packages.
+Pour une installation manuelle par .tgz, on peut d'abord installer les archives locales.
+Par exemple :
+cd /d D:\NextOffline\mon-app
+Puis :
+npm install --offline D:\NextOffline\packages\next-16.3.1.tgz
+Ensuite React :
+npm install --offline D:\NextOffline\packages\react-19.2.0.tgz
+npm install --offline D:\NextOffline\packages\react-dom-19.2.0.tgz
+Puis TypeScript :
+npm install --offline D:\NextOffline\packages\typescript-5.9.3.tgz
+⚠️ Mais je te recommande une meilleure méthode
+Pour 100 % offline, le plus fiable est de disposer d'un package-lock.json complet correspondant exactement à :
+Next.js 16.3.1
+React 19.2.0
+React DOM 19.2.0
+TypeScript 5.9.3
+Windows x64
+Le lockfile contient notamment les URLs resolved, les versions et les intégrités SHA-512. Un exemple de lockfile utilisant Next 16.3.1 montre précisément ce mécanisme. �
+GitHub
+Ensuite, on peut construire un vrai cache npm offline à partir de ce lockfile.
+Et c'est ce que je te conseille pour ton PC entreprise
+Internet via navigateur
+        │
+        ▼
+Téléchargement manuel des .tgz
+        │
+        ▼
+D:\NextOffline\packages
+        │
+        ▼
+package-lock.json
+        │
+        ▼
+npm cache local
+        │
+        ▼
+npm install --offline
+        │
+        ▼
+node_modules
+        │
+        ▼
+Next.js 16.3.1
+        │
+        ▼
+http://localhost:3000
+Si tu veux vraiment faire l'installation sans aucun risque d'oublier une dépendance, l'étape suivante est de te fournir le package-lock.json complet + la liste exacte de tous les .tgz correspondant à ce lockfile + les commandes Windows pour construire le cache npm local. C'est beaucoup plus sûr que la liste manuelle ci-dessus, car npm résout alors exactement le même arbre de dépendances.

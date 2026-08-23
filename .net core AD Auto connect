@@ -1,0 +1,344 @@
+Oui. Pour un .NET Core Web API avec authentification automatique via Active Directory, le principe dépend surtout de l'environnement :
+Application intranet Windows
+Les utilisateurs sont déjà connectés à leur session Windows
+Le navigateur transmet l'identité Windows à l'API
+L'API récupère DOMAIN\username
+Ensuite, tu peux appliquer tes règles d'autorisation applicatives depuis Oracle.
+Voici un exemple complet basé sur Windows Authentication / Kerberos ou NTLM.
+1. Architecture
+┌──────────────────────┐
+│ PC utilisateur       │
+│ Windows + AD         │
+│                      │
+│ Session : DOMAIN\ali │
+└──────────┬───────────┘
+           │
+           │ Windows Authentication
+           ▼
+┌─────────────────────────────┐
+│ IIS / Kestrel               │
+│                             │
+│ ASP.NET Core Web API        │
+│                             │
+│ HttpContext.User            │
+│   DOMAIN\ali                │
+└─────────────┬───────────────┘
+              │
+              ▼
+       ┌──────────────┐
+       │ Oracle 19c   │
+       │              │
+       │ Users        │
+       │ Roles        │
+       │ Permissions  │
+       └──────────────┘
+2. Créer le projet
+dotnet new webapi -n AdApi
+cd AdApi
+Pour .NET 8 par exemple :
+dotnet --version
+Puis :
+dotnet add package Microsoft.AspNetCore.Authentication.Negotiate
+3. Program.cs
+using Microsoft.AspNetCore.Authentication.Negotiate;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+    .AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+    .AddNegotiate();
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddControllers();
+
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+Le point important est :
+app.UseAuthentication();
+app.UseAuthorization();
+et l'utilisation de :
+.AddNegotiate();
+4. Contrôleur pour tester l'utilisateur connecté
+Crée :
+Controllers/
+    AccountController.cs
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace AdApi.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AccountController : ControllerBase
+{
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult Me()
+    {
+        var username = User.Identity?.Name;
+
+        return Ok(new
+        {
+            authenticated = User.Identity?.IsAuthenticated,
+            authenticationType = User.Identity?.AuthenticationType,
+            username = username
+        });
+    }
+}
+Depuis un PC du domaine :
+GET http://serveur:5000/api/account/me
+Tu peux obtenir :
+{
+  "authenticated": true,
+  "authenticationType": "Negotiate",
+  "username": "MYDOMAIN\\sidali"
+}
+Il n'y a donc aucun formulaire de login.
+5. Récupérer le nom Windows
+Tu peux également récupérer les claims :
+[HttpGet("claims")]
+[Authorize]
+public IActionResult Claims()
+{
+    return Ok(User.Claims.Select(c => new
+    {
+        c.Type,
+        c.Value
+    }));
+}
+Tu peux avoir des informations comme :
+Name
+MYDOMAIN\sidali
+et selon la configuration :
+ClaimTypes.Name
+ClaimTypes.WindowsAccountName
+6. Autorisation par groupes Active Directory
+Tu peux aller plus loin.
+Par exemple :
+DOMAIN\Users
+DOMAIN\Admins
+DOMAIN\Managers
+DOMAIN\Accounting
+Tu peux protéger une API avec une policy.
+Dans Program.cs :
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Administrators", policy =>
+    {
+        policy.RequireRole(@"MYDOMAIN\Domain Admins");
+    });
+});
+Puis :
+[Authorize(Policy = "Administrators")]
+[HttpDelete("{id}")]
+public IActionResult Delete(int id)
+{
+    return Ok();
+}
+Mais pour ton besoin, je recommande plutôt AD pour l'identité + Oracle pour les permissions applicatives.
+7. Architecture que je te recommande
+Compte tenu de ton besoin de permissions complexes :
+                 ACTIVE DIRECTORY
+                       │
+                       │
+                 Authentification
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ ASP.NET Core API│
+              └────────┬────────┘
+                       │
+              DOMAIN\SIDALI
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Authorization   │
+              │ Service         │
+              └────────┬────────┘
+                       │
+                       ▼
+                  ORACLE 19c
+Oracle pourrait contenir :
+APP_USERS
+ID
+AD_LOGIN
+ACTIVE
+1
+MYDOMAIN\sidali
+1
+2
+MYDOMAIN\ahmed
+1
+APP_ROLES
+ID
+NAME
+1
+ADMIN
+2
+MANAGER
+3
+USER
+APP_USER_ROLES
+USER_ID
+ROLE_ID
+1
+1
+2
+3
+APP_PERMISSIONS
+ID
+CODE
+1
+DOSSIER.READ
+2
+DOSSIER.CREATE
+3
+DOSSIER.UPDATE
+4
+DOSSIER.DELETE
+APP_ROLE_PERMISSIONS
+ROLE_ID
+PERMISSION_ID
+1
+1
+1
+2
+1
+3
+1
+4
+3
+1
+Ainsi :
+Windows AD
+    │
+    │ DOMAIN\sidali
+    ▼
+ASP.NET Core
+    │
+    │ recherche utilisateur
+    ▼
+Oracle
+    │
+    ├── ADMIN
+    │
+    ├── DOSSIER.READ
+    ├── DOSSIER.CREATE
+    ├── DOSSIER.UPDATE
+    └── DOSSIER.DELETE
+8. Exemple de permission applicative
+Tu peux créer un attribut :
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public class PermissionAttribute : Attribute
+{
+    public string Permission { get; }
+
+    public PermissionAttribute(string permission)
+    {
+        Permission = permission;
+    }
+}
+Puis :
+[HttpPost]
+[Authorize]
+[Permission("DOSSIER.CREATE")]
+public IActionResult CreateDossier()
+{
+    return Ok();
+}
+L'API fait alors :
+Utilisateur Windows
+       ↓
+DOMAIN\sidali
+       ↓
+Oracle
+       ↓
+Roles
+       ↓
+Permissions
+       ↓
+DOSSIER.CREATE ?
+       ↓
+   OUI → 200
+   NON → 403
+9. Configuration IIS
+Pour une application intranet, IIS est généralement le meilleur choix.
+Dans IIS :
+Application
+   └── Authentication
+          ├── Anonymous Authentication → Disabled
+          └── Windows Authentication   → Enabled
+Puis :
+Windows Authentication
+    Providers
+       ├── Negotiate
+       └── NTLM
+L'ordre recommandé est :
+Negotiate
+NTLM
+Kerberos sera utilisé lorsque la configuration AD/DNS/SPN le permet, avec NTLM comme mécanisme de secours.
+10. Côté Next.js
+C'est particulièrement intéressant si ton frontend est Next.js.
+Architecture :
+                ┌───────────────┐
+                │ Windows + AD  │
+                └───────┬───────┘
+                        │
+                        ▼
+                ┌───────────────┐
+                │    Next.js    │
+                │   Frontend    │
+                └───────┬───────┘
+                        │
+                        ▼
+                ┌───────────────┐
+                │ ASP.NET Core  │
+                │      API      │
+                └───────┬───────┘
+                        │
+                        ▼
+                ┌───────────────┐
+                │   Oracle 19c  │
+                └───────────────┘
+Le navigateur peut appeler :
+https://api.mondomaine.local/api/account/me
+et l'API identifie automatiquement l'utilisateur Windows.
+Attention
+Le Next.js ne doit pas essayer de demander le mot de passe AD.
+Le navigateur + IIS + Windows Authentication s'occupent de l'authentification.
+11. Résultat final
+L'utilisateur ouvre :
+https://portal.mondomaine.local
+Il n'a pas de page :
+Login
+Password
+[Se connecter]
+Il est automatiquement identifié :
+Bienvenue Sidali
+Compte : MYDOMAIN\sidali
+Puis l'API peut déterminer :
+Utilisateur
+   ↓
+AD
+   ↓
+DOMAIN\sidali
+   ↓
+Oracle
+   ↓
+ADMIN
+   ↓
+Permissions
+   ├── DOSSIER.READ       ✓
+   ├── DOSSIER.CREATE     ✓
+   ├── DOSSIER.UPDATE     ✓
+   ├── DOSSIER.DELETE     ✓
+   ├── USER.READ          ✓
+   └── USER.DELETE        ✗
+C'est cette architecture que je te conseille pour ton portail Next.js + .NET Core API + Oracle 19c en environnement Windows/Active Directory.

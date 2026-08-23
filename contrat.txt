@@ -1,0 +1,898 @@
+Si tu parles des types de contrats utilisés par SONATRACH avec ses partenaires dans le domaine des hydrocarbures, la loi algérienne n° 19-13 prévoit principalement 3 formes de contrats d’hydrocarbures : 
+
+Type	Principe	Exemple récent
+
+Contrat de participation	SONATRACH et le partenaire participent ensemble aux opérations et aux investissements, selon leurs intérêts dans le contrat.	Toual II avec Zangas et Filada ; Guern El Guessa II avec SINOPEC 
+Contrat de partage de production (PSC)	La production d’hydrocarbures est répartie entre les parties selon les règles prévues au contrat, après prise en compte des coûts et obligations.	Reggane II avec PTTEP et ENI ; AHARA avec QatarEnergy et TotalEnergies 
+Contrat de services à risque	Le partenaire fournit des investissements/services liés à l’exploration et au développement avec une rémunération définie contractuellement et supporte un risque lié aux opérations.	Forme prévue par la loi n°19-13 
+
+
+Il existe aussi d'autres contrats chez SONATRACH
+
+Il faut distinguer les contrats d'hydrocarbures ci-dessus des contrats utilisés pour réaliser les projets industriels.
+
+Par exemple :
+
+EPC — Engineering, Procurement & Construction : ingénierie, approvisionnement et construction. SONATRACH utilise ce type de contrat pour des projets d'infrastructures et de développement de champs. 
+
+EPCC — Engineering, Procurement, Construction & Commissioning : EPC + mise en service. Par exemple, le projet d'unité d'hydrotraitement/reforming de la raffinerie d'Arzew avec SINOPEC Guangzhou Engineering. 
+
+Contrats de service : par exemple, SONATRACH a signé en 2025 avec PERTAMINA des contrats de service concernant l'enlèvement du pétrole brut, du condensat et des GPL. 
+
+Contrats de transport : transport des hydrocarbures par canalisation, avec des contrats-types approuvés par l'ARH. 
+
+
+À retenir
+
+Si ton objectif est de comprendre les contrats pétroliers SONATRACH, retiens surtout :
+
+1. Participation
+2. Partage de production (PSC)
+3. Services à risque
+
+Ces trois formes sont celles prévues pour les contrats d'hydrocarbures avec des partenaires dans le cadre de la loi n° 19-13. 
+
+Si par « types de contrats SONATRACH » tu voulais plutôt parler des contrats de travail des employés SONATRACH (CDI, CDD, contrat temporaire, pré-emploi, etc.), je peux aussi te détailler ceux-là.
+
+----
+
+
+Oui. Si tu parles des contrats commerciaux de vente de produits de SONATRACH — par exemple pétrole brut, condensat, GPL, gaz, produits raffinés ou pétrochimiques — on peut les classer selon la forme commerciale et la durée.
+
+1. Contrat de vente ponctuelle — Spot
+
+Vente réalisée pour une quantité déterminée et une période courte, souvent une cargaison ou une livraison précise.
+
+Exemple :
+
+> SONATRACH vend 500 000 barils de pétrole brut à un client, avec livraison prévue en octobre.
+
+
+
+Caractéristiques :
+
+quantité déterminée ;
+
+prix fixé selon une formule ou un prix de marché ;
+
+date/lieu de livraison définis ;
+
+paiement selon les conditions convenues.
+
+
+
+---
+
+2. Contrat de vente à terme — Term Contract
+
+Contrat portant sur des livraisons régulières pendant une période déterminée.
+
+Exemple :
+
+Élément	Exemple
+
+Client	Société X
+Produit	Condensat
+Durée	1 an
+Quantité	100 000 tonnes/an
+Livraison	Mensuelle
+Prix	Formule indexée
+Paiement	30 jours
+
+
+C'est particulièrement adapté lorsqu'il existe une relation commerciale régulière.
+
+
+---
+
+3. Contrat-cadre
+
+Le contrat-cadre définit les conditions générales de vente pour plusieurs commandes futures.
+
+Par exemple :
+
+Contrat-cadre → Commande 1 → Livraison → Facture → Paiement
+**                     ↳ Commande 2 → Livraison → Facture → Paiement**
+
+Il permet d'éviter de renégocier toutes les conditions à chaque vente.
+
+
+---
+
+4. Contrat de vente à long terme
+
+Contrat conclu pour plusieurs années avec des engagements importants sur les volumes.
+
+Exemple :
+
+SONATRACH s'engage à fournir à un client :
+
+1 million de tonnes/an ;
+
+pendant 5 ans ;
+
+avec une formule de prix définie au contrat.
+
+
+Ce type de contrat permet notamment de sécuriser les approvisionnements du client et les débouchés du vendeur.
+
+
+---
+
+5. Contrat de vente avec prix indexé
+
+Le prix n'est pas nécessairement fixé définitivement au moment de la signature.
+
+Il peut être calculé à partir d'une formule :
+
+Prix de vente = indice de référence +/− ajustement
+
+Par exemple, le prix peut être lié à un indice pétrolier ou gazier de référence.
+
+
+---
+
+6. Contrat de vente avec livraison physique
+
+Le vendeur livre réellement le produit au client.
+
+Le contrat doit notamment préciser :
+
+produit ;
+
+spécifications/qualité ;
+
+quantité ;
+
+lieu de livraison ;
+
+calendrier ;
+
+transfert de propriété ;
+
+transfert des risques ;
+
+prix ;
+
+transport ;
+
+assurance ;
+
+modalités de paiement ;
+
+pénalités ;
+
+force majeure.
+
+
+
+---
+
+Pour un système informatique de gestion des ventes
+
+Si ton objectif est de concevoir un module de gestion des contrats de vente pour SONATRACH, je te conseille plutôt cette structure :
+
+CLIENT
+   │
+   ▼
+CONTRAT DE VENTE
+   │
+   ├── Produit
+   ├── Type de contrat
+   ├── Durée
+   ├── Quantité contractuelle
+   ├── Prix / formule de prix
+   ├── Conditions de livraison
+   └── Conditions de paiement
+          │
+          ▼
+       COMMANDES
+          │
+          ▼
+     LIVRAISONS
+          │
+          ▼
+       FACTURES
+          │
+          ▼
+      PAIEMENTS
+
+Avec par exemple :
+
+Type de contrat	Code
+
+Vente ponctuelle / Spot	SPOT
+Vente à terme	TERM
+Contrat-cadre	FRAMEWORK
+Vente long terme	LTC
+Vente avec prix indexé	INDEXED
+
+
+Attention : ces catégories sont des catégories de gestion commerciale ; elles ne correspondent pas nécessairement à une nomenclature juridique officielle propre à SONATRACH.
+
+Si tu développes actuellement une application de gestion des ventes SONATRACH, je peux te proposer la structure complète de la base de données des contrats de vente (contrat → avenants → commandes → livraisons → factures → paiements), avec les tables Oracle 19c et les champs.
+
+---
+
+FOB signifie Free On Board (« franco à bord »). C'est un Incoterm utilisé dans les contrats de vente, notamment pour les marchandises transportées par navire.
+
+Exemple dans une vente de pétrole
+
+Supposons que SONATRACH vende du pétrole à un client avec une condition :
+
+> FOB Port d'Arzew
+
+
+
+Le principe est :
+
+SONATRACH → chargement du produit sur le navire → transfert des risques → Client
+
+Élément	Responsabilité SONATRACH	Responsabilité client
+
+Produit jusqu'au port	✅	
+Formalités export	✅	
+Chargement sur le navire	✅	
+Transport maritime		✅
+Assurance maritime		✅
+Déchargement au port de destination		✅
+Risque après chargement		✅
+
+
+Point essentiel
+
+En FOB, le vendeur prend en charge les coûts et les risques jusqu'au chargement de la marchandise à bord du navire au port d'expédition.
+
+À partir de ce moment, le risque est transféré à l'acheteur.
+
+Par exemple :
+
+SONATRACH
+   │
+   │ produit
+   ▼
+Port d'Arzew
+   │
+   │ Chargement sur navire
+   ▼
+════════════════════════════
+       NAVIRE
+════════════════════════════
+   │
+   │ Transport maritime
+   ▼
+Port de destination
+   │
+   ▼
+CLIENT
+
+FOB vs CIF
+
+Dans les contrats de vente de produits pétroliers, tu rencontreras souvent FOB et CIF :
+
+	FOB	CIF
+
+Transport maritime	Acheteur	Vendeur
+Assurance maritime	Acheteur	Vendeur
+Chargement au port d'origine	Vendeur	Vendeur
+Risque transféré	À bord du navire	À bord du navire
+Prix	Généralement plus bas	Généralement plus élevé
+
+
+Exemple :
+
+FOB Arzew : le client organise le navire et le transport.
+
+CIF Marseille : SONATRACH organise et paie le transport maritime et l'assurance jusqu'au port de destination.
+
+
+Si tu conçois une base de données des contrats de vente, FOB, CIF, DAP, etc. devraient généralement être gérés comme des conditions de livraison / Incoterms, et non comme des types de contrats.
+
+---
+
+Bien sûr. CIF et DAP sont des Incoterms®, c’est-à-dire des règles qui définissent notamment la répartition des coûts, responsabilités et risques entre vendeur et acheteur.
+
+1. CIF — Cost, Insurance and Freight
+
+CIF = Coût, Assurance et Fret
+
+Le vendeur prend en charge :
+
+le produit jusqu'au port d'expédition ;
+
+les formalités d'exportation ;
+
+le chargement à bord du navire ;
+
+le fret maritime jusqu'au port de destination ;
+
+une assurance transport minimale prévue par le CIF.
+
+
+⚠️ Point important : même si le vendeur paie le transport jusqu'au port de destination, le risque est transféré à l'acheteur lorsque la marchandise est chargée à bord du navire au port d'expédition.
+
+Exemple :
+
+> Vente de pétrole : CIF Marseille
+
+
+
+SONATRACH paie le transport maritime et l'assurance jusqu'à Marseille, mais le risque est transféré à l'acheteur dès le chargement à bord du navire au port de départ.
+
+SONATRACH
+    │
+    ▼
+Port d'expédition
+    │
+    │ Chargement
+    ▼
+══════════════════
+      NAVIRE
+══════════════════
+    │
+    │ Fret payé par vendeur
+    ▼
+Port de Marseille
+    │
+    ▼
+   CLIENT
+
+
+---
+
+2. DAP — Delivered At Place
+
+DAP = Rendu au lieu de destination
+
+Le vendeur organise et supporte les coûts et risques du transport jusqu'au lieu de destination convenu.
+
+Le vendeur prend généralement en charge :
+
+transport ;
+
+exportation ;
+
+acheminement jusqu'au lieu convenu ;
+
+risques jusqu'à l'arrivée au lieu de destination.
+
+
+L'acheteur prend notamment en charge :
+
+importation ;
+
+droits et taxes d'importation ;
+
+déchargement, sauf disposition contraire.
+
+
+Exemple :
+
+> Vente de produits pétrochimiques : DAP Entrepôt du client, Marseille
+
+
+
+SONATRACH organise le transport jusqu'à l'entrepôt convenu.
+
+SONATRACH
+    │
+    ▼
+Port / terminal
+    │
+    ▼
+Transport
+    │
+    ▼
+════════════════════
+Entrepôt du client
+     DAP
+════════════════════
+    │
+    ▼
+   CLIENT
+
+CIF vs DAP
+
+Élément	CIF	DAP
+
+Transport principal	Vendeur	Vendeur
+Assurance obligatoire	Oui, couverture minimale	Non
+Transport maritime	Oui	Possible, mais DAP est multimodal
+Transfert du risque	À bord du navire au départ	Au lieu de destination
+Importation	Acheteur	Acheteur
+Droits/taxes import	Acheteur	Acheteur
+Déchargement à destination	Acheteur	Acheteur
+Type de transport	Maritime/fluvial uniquement	Tous modes
+
+
+En résumé :
+
+> FOB → vendeur livre à bord du navire.
+CIF → vendeur paie le fret + assurance, mais le risque passe à l'acheteur au départ.
+DAP → vendeur assume le transport et le risque jusqu'au lieu de destination convenu.
+
+
+
+Pour une application de gestion des contrats de vente SONATRACH, je mettrais donc un champ INCOTERM avec des valeurs comme FOB, CIF, DAP, etc., séparé du type de contrat.
+
+---
+
+Oui. Si on reprend les 6 catégories commerciales évoquées précédemment — Spot, Term, Contrat-cadre, Long Terme, Prix indexé et Vente avec livraison physique — la facturation ne se fait pas exactement de la même manière.
+
+> Important : ces 6 catégories peuvent se chevaucher. Par exemple, un contrat long terme peut aussi avoir un prix indexé et être vendu CIF.
+
+
+
+1. Vue générale
+
+CONTRAT DE VENTE
+       │
+       ├── Produit
+       ├── Quantité / volume
+       ├── Prix ou formule de prix
+       ├── Incoterm (FOB / CIF / DAP...)
+       ├── Période
+       └── Conditions de paiement
+              │
+              ▼
+          COMMANDE
+              │
+              ▼
+         LIVRAISON
+              │
+              ▼
+       QUANTITÉ LIVRÉE
+              │
+              ▼
+       CALCUL DU PRIX
+              │
+              ▼
+          FACTURE
+              │
+              ▼
+          PAIEMENT
+
+2. Facturation selon les 6 types
+
+Type	Base de facturation	Fréquence typique
+
+Spot	Quantité réellement vendue × prix convenu	Par cargaison / livraison
+Term	Quantité livrée × prix contractuel	Mensuelle ou par livraison
+Contrat-cadre	Chaque commande/livraison donne lieu à une facture	Selon les commandes
+Long terme	Quantités livrées selon programme × prix contractuel	Mensuelle / par cargaison
+Prix indexé	Quantité × prix calculé à partir de la formule	Mensuelle / après publication de l'indice
+Livraison physique	Quantité effectivement livrée × prix applicable	À chaque livraison ou période
+
+
+
+---
+
+Exemple concret
+
+Supposons un contrat de vente de 100 000 tonnes d'un produit.
+
+Le contrat prévoit :
+
+durée : 1 an ;
+
+livraison mensuelle ;
+
+prix : 500 USD/tonne ;
+
+Incoterm : CIF ;
+
+paiement : 30 jours.
+
+
+En janvier :
+
+Quantité contractuelle : 8 000 tonnes
+Quantité réellement livrée : 7 800 tonnes
+
+La facture peut être calculée ainsi :
+
+7 800 tonnes × 500 USD
+= 3 900 000 USD
+
+Donc :
+
+Facture janvier = 3 900 000 USD
+
+Le contrat n'est pas facturé directement pour les 100 000 tonnes. La facturation est généralement déclenchée par les livraisons/quantités facturables prévues au contrat.
+
+
+---
+
+Cas particulier : prix indexé
+
+C'est là que la facturation devient plus intéressante.
+
+Supposons :
+
+Prix = Prix de référence + Prime
+
+ou une formule plus complexe.
+
+Par exemple :
+
+Prix final = Indice × coefficient + ajustement
+
+Si l'indice définitif n'est publié qu'après la livraison, on peut avoir :
+
+Facture provisoire
+
+Quantité × Prix estimatif
+
+puis, lorsque le prix définitif est connu :
+
+Facture définitive / facture d'ajustement
+
+Quantité × Prix définitif
+-
+Montant déjà facturé
+=
+Ajustement
+
+Exemple :
+
+	Montant
+
+Facture provisoire	3 900 000 USD
+Prix définitif recalculé	3 978 000 USD
+Ajustement	+78 000 USD
+
+
+Une facture complémentaire de 78 000 USD peut alors être émise.
+
+
+---
+
+Et avec FOB / CIF / DAP ?
+
+L'Incoterm influence également le calcul commercial, mais il ne définit pas à lui seul la méthode de facturation.
+
+Par exemple :
+
+FOB
+
+Prix produit
++ éventuellement éléments prévus au contrat
+= Prix facturé FOB
+
+CIF
+
+Prix produit
++ fret
++ assurance
+= Prix facturé CIF
+
+DAP
+
+Prix produit
++ transport jusqu'au lieu convenu
++ autres coûts prévus
+= Prix facturé DAP
+
+Il faut donc distinguer dans ton système :
+
+TYPE DE CONTRAT
+       ↓
+CONDITIONS COMMERCIALES
+       ├── Produit
+       ├── Quantité
+       ├── Prix
+       ├── Formule de prix
+       ├── Incoterm
+       └── Paiement
+              ↓
+        LIVRAISON
+              ↓
+       QUANTITÉ FACTURABLE
+              ↓
+          FACTURATION
+
+Pour une application de gestion commerciale
+
+Je te conseille de ne pas mettre toute la logique dans la table CONTRAT. Il serait préférable d'avoir :
+
+CLIENT
+  │
+  └── CONTRAT_VENTE
+         │
+         ├── CONTRAT_LIGNE
+         │      ├── PRODUIT
+         │      ├── QUANTITE
+         │      ├── PRIX / FORMULE
+         │      └── INCOTERM
+         │
+         ├── PROGRAMME_LIVRAISON
+         │
+         ├── LIVRAISON
+         │
+         ├── FACTURE
+         │
+         └── PAIEMENT
+
+Et surtout, prévoir une relation :
+
+Livraison → Quantité facturable → Facture
+
+car c'est elle qui permet de gérer correctement les écarts entre quantité contractuelle, quantité commandée, quantité livrée et quantité facturée.
+
+----
+
+Oui. Prenons un contrat de vente à prix indexé avec :
+
+Quantité contractuelle : 8 000 tonnes
+
+Quantité réellement livrée : 7 800 tonnes
+
+Écart : 200 tonnes
+
+Incoterm : supposons CIF
+
+Facturation : mensuelle
+
+Prix définitif calculé après publication de l'indice de référence.
+
+
+L'idée importante est que 8 000 tonnes est l'engagement contractuel, tandis que 7 800 tonnes constitue la quantité réellement facturable, sauf clause contractuelle prévoyant un minimum garanti, une tolérance ou une pénalité.
+
+
+---
+
+1. Le contrat
+
+Supposons que le contrat prévoit :
+
+Élément	Valeur
+
+Produit	Produit pétrolier
+Quantité contractuelle	8 000 t
+Quantité prévue pour le mois	8 000 t
+Quantité livrée	7 800 t
+Incoterm	CIF
+Devise	USD
+Prix	Indexé
+Paiement	30 jours
+Tolérance	±5 %
+
+
+La formule de prix pourrait être, par exemple :
+
+Prix définitif = Indice de référence + Prime
+
+Supposons :
+
+Indice de référence = 480 USD/t
+
+Prime contractuelle = 20 USD/t
+
+
+Donc :
+
+Prix définitif = 480 + 20 = 500 USD/t
+
+
+---
+
+2. Livraison réelle
+
+Le contrat prévoyait :
+
+8 000 tonnes
+
+Mais le document de livraison indique :
+
+7 800 tonnes
+
+L'application doit donc conserver les deux valeurs :
+
+Quantité contractuelle : 8 000 t
+Quantité livrée        : 7 800 t
+Écart                  :   -200 t
+Taux de réalisation    : 97,50 %
+
+Calcul :
+
+7 800 / 8 000 × 100 = 97,5 %
+
+Les 200 tonnes non livrées ne doivent pas automatiquement être facturées.
+
+
+---
+
+3. Calcul du prix indexé
+
+Supposons que le contrat indique :
+
+Prix = Indice + Prime
+
+Au moment de la livraison, l'indice définitif n'est pas encore connu.
+
+On peut alors avoir une facturation provisoire.
+
+Prix provisoire
+
+Supposons :
+
+Indice provisoire = 475 USD/t
+
+Donc :
+
+475 + 20 = 495 USD/t
+
+Facture provisoire :
+
+7 800 × 495 = 3 861 000 USD
+
+La facture provisoire est donc :
+
+> 3 861 000 USD
+
+
+
+
+---
+
+4. Publication du prix définitif
+
+Quelques jours plus tard, l'indice définitif est publié :
+
+480 USD/t
+
+Le prix définitif devient :
+
+480 + 20 = 500 USD/t
+
+La valeur définitive de la livraison est donc :
+
+7 800 × 500 = 3 900 000 USD
+
+
+---
+
+5. Facture d'ajustement
+
+La première facture était :
+
+3 861 000 USD
+
+La valeur définitive est :
+
+3 900 000 USD
+
+Différence :
+
+3 900 000 − 3 861 000 = 39 000 USD
+
+Il faut donc générer une facture complémentaire / facture d'ajustement de :
+
+> 39 000 USD
+
+
+
+Résultat
+
+Élément	Montant
+
+Quantité livrée	7 800 t
+Prix provisoire	495 USD/t
+Facture provisoire	3 861 000 USD
+Prix définitif	500 USD/t
+Valeur définitive	3 900 000 USD
+Ajustement	+39 000 USD
+
+
+
+---
+
+6. Et les 200 tonnes non livrées ?
+
+C'est un point très important dans ton système.
+
+Quantité contractuelle       8 000 t
+          │
+          ├── Livrée :       7 800 t
+          │
+          └── Non livrée :     200 t
+
+Les 200 tonnes peuvent avoir plusieurs traitements selon le contrat :
+
+Cas A — Pas de pénalité
+
+Les 200 tonnes restent simplement comme quantité contractuelle non exécutée.
+
+Cas B — Report
+
+Les 200 tonnes sont reportées sur la prochaine période.
+
+Janvier :
+Contractuel  = 8 000
+Livré        = 7 800
+Reste        =   200
+
+Février :
+Nouveau programme
++ 200 tonnes reportées
+
+Cas C — Take-or-pay / obligation minimale
+
+Si le contrat prévoit que le client doit payer un minimum même si la quantité n'est pas retirée, les 200 tonnes peuvent être soumises à une règle de take-or-pay.
+
+Cela doit être défini précisément dans le contrat.
+
+
+---
+
+7. Dans la base de données
+
+Pour ton application, je séparerais clairement contrat, programme de livraison, livraison, prix et facturation.
+
+CONTRAT_VENTE
+       │
+       ├── QUANTITÉ CONTRACTUELLE
+       │       8 000 t
+       │
+       ├── FORMULE_PRIX
+       │       Indice + Prime
+       │
+       └── INCOTERM
+               CIF
+       
+       ↓
+
+PROGRAMME_LIVRAISON
+       │
+       └── 8 000 t
+
+       ↓
+
+LIVRAISON
+       │
+       └── 7 800 t
+
+       ↓
+
+CALCUL_PRIX
+       │
+       ├── Prix provisoire : 495 USD/t
+       └── Prix définitif : 500 USD/t
+
+       ↓
+
+FACTURE_PROVISOIRE
+       │
+       └── 3 861 000 USD
+
+       ↓
+
+AJUSTEMENT
+       │
+       └── +39 000 USD
+
+       ↓
+
+FACTURE_DEFINITIVE
+       │
+       └── 3 900 000 USD
+
+Les données essentielles à conserver
+
+Objet	Champ	Exemple
+
+Contrat	Quantité contractuelle	8 000 t
+Programme	Quantité programmée	8 000 t
+Livraison	Quantité livrée	7 800 t
+Livraison	Quantité acceptée	7 800 t
+Prix	Indice provisoire	475
+Prix	Indice définitif	480
+Prix	Prime	20
+Facture	Prix provisoire	495
+Facture	Prix définitif	500
+Facture	Montant provisoire	3 861 000
+Ajustement	Montant	+39 000
+Facture	Montant définitif	3 900 000
+
+
+Point clé pour ton application : ne mets surtout pas uniquement prix dans le contrat. Pour un contrat indexé, il faut conserver la formule de prix, l'indice utilisé, la date de référence, la valeur provisoire, la valeur définitive et les ajustements, car le prix peut changer après la livraison.

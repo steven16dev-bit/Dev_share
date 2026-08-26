@@ -1,0 +1,639 @@
+Exactement. La version précédente était principalement une maquette HTML/CSS : certains éléments étaient visuels mais ne faisaient rien, notamment la recherche, les menus déroulants, le lanceur d'applications et le profil.
+
+Pour un portail réellement fonctionnel, je vous conseille d'ajouter un fichier script.js et de rendre les composants interactifs.
+
+Fonctionnalités à activer
+
+Fonction	Comportement
+
+🔍 Recherche	Recherche les actualités/documents affichés
+⋮ Applications	Ouvre/ferme le panneau d'applications au clic
+👤 Avatar	Ouvre le menu utilisateur
+▼ Menus	Ouvre les sous-menus
+📁 Dossiers	Ouvre les sous-dossiers
+📄 PDF	Ouvre le document dans le navigateur
+📰 Actualités	Filtre les articles
+📱 Responsive	Menu adapté au mobile
+
+
+1. Ajouter js/script.js
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    /* =========================================
+       APPLICATIONS
+    ========================================= */
+
+    const appsButton = document.querySelector(".apps-button");
+    const appsPanel = document.querySelector(".apps-panel");
+
+    if (appsButton && appsPanel) {
+
+        appsButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+
+            appsPanel.classList.toggle("show");
+        });
+
+        appsPanel.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
+    }
+
+
+    /* =========================================
+       PROFILE MENU
+    ========================================= */
+
+    const profile = document.querySelector(".profile");
+
+    if (profile) {
+
+        profile.addEventListener("click", (event) => {
+
+            event.stopPropagation();
+
+            const menu = document.querySelector(".profile-menu");
+
+            if (menu) {
+                menu.classList.toggle("show");
+            }
+        });
+    }
+
+
+    /* =========================================
+       CLOSE POPUPS
+    ========================================= */
+
+    document.addEventListener("click", () => {
+
+        if (appsPanel) {
+            appsPanel.classList.remove("show");
+        }
+
+        const profileMenu =
+            document.querySelector(".profile-menu");
+
+        if (profileMenu) {
+            profileMenu.classList.remove("show");
+        }
+    });
+
+
+    /* =========================================
+       SEARCH
+    ========================================= */
+
+    const searchInputs =
+        document.querySelectorAll(".search-box input");
+
+
+    searchInputs.forEach(input => {
+
+        input.addEventListener("input", () => {
+
+            const search =
+                input.value.toLowerCase().trim();
+
+
+            /*
+             * Recherche des cartes d'actualités
+             */
+
+            const newsCards =
+                document.querySelectorAll(
+                    ".news-card, .large-news-card"
+                );
+
+
+            newsCards.forEach(card => {
+
+                const text =
+                    card.textContent.toLowerCase();
+
+                if (text.includes(search)) {
+
+                    card.style.display = "";
+
+                } else {
+
+                    card.style.display = "none";
+                }
+            });
+
+
+            /*
+             * Recherche des documents
+             */
+
+            const files =
+                document.querySelectorAll(".file-row");
+
+
+            files.forEach(file => {
+
+                const text =
+                    file.textContent.toLowerCase();
+
+                if (text.includes(search)) {
+
+                    file.style.display = "";
+
+                } else {
+
+                    file.style.display = "none";
+                }
+            });
+
+
+            /*
+             * Recherche dans les dossiers
+             */
+
+            const folders =
+                document.querySelectorAll(".folder-item");
+
+            folders.forEach(folder => {
+
+                const text =
+                    folder.textContent.toLowerCase();
+
+                if (text.includes(search)) {
+
+                    folder.style.display = "";
+
+                } else {
+
+                    folder.style.display = "none";
+                }
+            });
+
+        });
+
+    });
+
+
+    /* =========================================
+       CATEGORY FILTER
+    ========================================= */
+
+    const newsSelect =
+        document.querySelector(".news-toolbar select");
+
+
+    if (newsSelect) {
+
+        newsSelect.addEventListener("change", () => {
+
+            const selected =
+                newsSelect.value.toLowerCase();
+
+
+            const cards =
+                document.querySelectorAll(
+                    ".large-news-card"
+                );
+
+
+            cards.forEach(card => {
+
+                if (
+                    selected === "toutes les catégories" ||
+                    selected === ""
+                ) {
+
+                    card.style.display = "";
+
+                    return;
+                }
+
+
+                const tag =
+                    card.querySelector(".tag");
+
+
+                if (!tag) return;
+
+
+                const category =
+                    tag.textContent.toLowerCase();
+
+
+                if (category.includes(selected)) {
+
+                    card.style.display = "";
+
+                } else {
+
+                    card.style.display = "none";
+                }
+
+            });
+
+        });
+
+    }
+
+
+    /* =========================================
+       DOCUMENT TYPE FILTER
+    ========================================= */
+
+    const documentSelect =
+        document.querySelector(
+            ".document-toolbar select"
+        );
+
+
+    if (documentSelect) {
+
+        documentSelect.addEventListener("change", () => {
+
+            const selected =
+                documentSelect.value.toLowerCase();
+
+
+            const files =
+                document.querySelectorAll(".file-row");
+
+
+            files.forEach(file => {
+
+                if (
+                    selected === "tous les types" ||
+                    selected === ""
+                ) {
+
+                    file.style.display = "";
+
+                    return;
+                }
+
+
+                const text =
+                    file.textContent.toLowerCase();
+
+
+                if (text.includes(selected)) {
+
+                    file.style.display = "";
+
+                } else {
+
+                    file.style.display = "none";
+                }
+
+            });
+
+        });
+
+    }
+
+
+    /* =========================================
+       FOLDER TREE
+    ========================================= */
+
+    const treeItems =
+        document.querySelectorAll(".tree-item");
+
+
+    treeItems.forEach(item => {
+
+        item.addEventListener("click", () => {
+
+            /*
+             * Sélection du dossier
+             */
+
+            treeItems.forEach(x => {
+                x.classList.remove("selected");
+            });
+
+            item.classList.add("selected");
+
+        });
+
+    });
+
+
+});
+
+2. Modifier le chargement du JavaScript
+
+Avant </body> dans les trois pages :
+
+<script src="js/script.js"></script>
+</body>
+
+Donc :
+
+portal/
+│
+├── index.html
+├── documents.html
+├── actualites.html
+│
+├── css/
+│   └── style.css
+│
+├── js/
+│   └── script.js
+│
+└── images/
+    ├── logo.png
+    ├── news-1.jpg
+    ├── news-2.jpg
+    ├── news-3.jpg
+    └── placeholder.png
+
+3. Pour que le panneau Applications fonctionne au clic
+
+Dans style.css, supprimer :
+
+.apps-wrapper:hover .apps-panel {
+    display: block;
+}
+
+Et remplacer :
+
+.apps-panel {
+    ...
+    display: none;
+}
+
+par :
+
+.apps-panel {
+    position: absolute;
+
+    right: -120px;
+    top: 58px;
+
+    width: 410px;
+
+    padding: 24px;
+
+    background: white;
+
+    border: 1px solid var(--border);
+
+    border-radius: 16px;
+
+    box-shadow: 0 15px 45px rgba(0,0,0,.15);
+
+    display: none;
+
+    z-index: 2000;
+}
+
+.apps-panel.show {
+    display: block;
+}
+
+Ainsi :
+
+clic sur ⋮ → ouverture
+
+clic ailleurs → fermeture
+
+
+---
+
+4. Ajouter le menu utilisateur
+
+Dans index.html, remplacer :
+
+<div class="profile">
+
+    <img src="https://i.pravatar.cc/100?img=12"
+         alt="Utilisateur">
+
+    <span>Sidali Boudehane</span>
+
+    <i class="fa-solid fa-chevron-down"></i>
+
+</div>
+
+par :
+
+<div class="profile-wrapper">
+
+    <div class="profile">
+
+        <img src="https://i.pravatar.cc/100?img=12"
+             alt="Utilisateur">
+
+        <span>Sidali Boudehane</span>
+
+        <i class="fa-solid fa-chevron-down"></i>
+
+    </div>
+
+
+    <div class="profile-menu">
+
+        <div class="profile-header">
+
+            <img src="https://i.pravatar.cc/100?img=12">
+
+            <div>
+                <strong>Sidali Boudehane</strong>
+                <span>Utilisateur</span>
+            </div>
+
+        </div>
+
+
+        <a href="#">
+            <i class="fa-regular fa-user"></i>
+            Mon profil
+        </a>
+
+        <a href="#">
+            <i class="fa-solid fa-gear"></i>
+            Paramètres
+        </a>
+
+        <a href="#">
+            <i class="fa-regular fa-bell"></i>
+            Notifications
+        </a>
+
+        <div class="profile-separator"></div>
+
+        <a href="#" class="logout">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            Déconnexion
+        </a>
+
+    </div>
+
+</div>
+
+Puis CSS :
+
+.profile-wrapper {
+    position: relative;
+}
+
+.profile-menu {
+
+    position: absolute;
+
+    right: 0;
+
+    top: 55px;
+
+    width: 280px;
+
+    background: white;
+
+    border: 1px solid var(--border);
+
+    border-radius: 14px;
+
+    box-shadow:
+        0 15px 40px rgba(0,0,0,.14);
+
+    padding: 10px;
+
+    display: none;
+
+    z-index: 2000;
+}
+
+.profile-menu.show {
+    display: block;
+}
+
+
+.profile-header {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 12px;
+
+    margin-bottom: 8px;
+
+    background: #f7f9fc;
+
+    border-radius: 10px;
+}
+
+.profile-header img {
+
+    width: 42px;
+    height: 42px;
+
+    border-radius: 50%;
+}
+
+.profile-header strong {
+
+    display: block;
+
+    font-size: 13px;
+}
+
+.profile-header span {
+
+    display: block;
+
+    font-size: 11px;
+
+    color: #667085;
+
+    margin-top: 3px;
+}
+
+
+.profile-menu a {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 12px;
+
+    color: var(--text);
+
+    text-decoration: none;
+
+    border-radius: 8px;
+
+    font-size: 13px;
+}
+
+.profile-menu a:hover {
+
+    background: #f2f5f9;
+}
+
+.profile-menu a i {
+
+    width: 20px;
+
+    color: #667085;
+}
+
+.profile-separator {
+
+    height: 1px;
+
+    background: var(--border);
+
+    margin: 7px 0;
+}
+
+.profile-menu .logout {
+
+    color: #d92d20;
+}
+
+.profile-menu .logout i {
+
+    color: #d92d20;
+}
+
+Résultat
+
+On passe donc de maquette statique à un véritable prototype :
+
+┌───────────────────────────────────────────────────────────────┐
+│ LOGO     Accueil ▼   Documents ▼   Actualités ▼    🔍  ⠿  👤 │
+└───────────────────────────────────────────────────────────────┘
+                                                       │
+                           clic ⠿                       ▼
+                                      ┌────────────────────────┐
+                                      │ Applications            │
+                                      │                         │
+                                      │ ERP   RH   GED   Mail  │
+                                      │ BI    IT   Finance ... │
+                                      │                         │
+                                      │ Toutes les applications│
+                                      └────────────────────────┘
+
+
+                                                     clic 👤
+                                                         │
+                                                         ▼
+                                      ┌────────────────────────┐
+                                      │ 👤 Sidali Boudehane    │
+                                      │    Utilisateur         │
+                                      ├────────────────────────┤
+                                      │ 👤 Mon profil          │
+                                      │ ⚙️ Paramètres          │
+                                      │ 🔔 Notifications       │
+                                      ├────────────────────────┤
+                                      │ 🚪 Déconnexion         │
+                                      └────────────────────────┘
+
+Pour votre projet final Next.js + .NET API, je ferais ensuite la recherche de façon plus complète : recherche globale dans actualités + dossiers + PDF + applications, avec les résultats récupérés depuis l'API plutôt que seulement filtrer les éléments déjà présents dans la page.

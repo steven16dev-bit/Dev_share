@@ -1,32 +1,256 @@
-@media (max-width: 500px) {
+menu principal 
 
-    .apps-panel {
-        top: 68px;
+Oui, c'est normal avec le CSS actuel : nous avons mis :
 
-        left: 50%;
-
-        width: calc(100vw - 16px);
-        max-width: none;
-
-        transform: translateX(-50%);
-
-        padding: 16px;
-
-        border-radius: 14px;
-    }
-
-    .apps-grid {
-        grid-template-columns: repeat(4, 1fr);
-
-        gap: 18px 4px;
-    }
-
-    .app-icon {
-        width: 42px;
-        height: 42px;
-    }
-
-    .apps-grid a {
-        font-size: 11px;
+@media (max-width: 800px) {
+    .main-nav {
+        display: none;
     }
 }
+
+Donc le menu principal est simplement caché sur mobile. Pour un portail avec 3 rubriques, je recommande de le remplacer par un bouton hamburger.
+
+1. Dans le HTML du topbar
+
+Ajoutez ce bouton juste avant <nav class="main-nav"> :
+
+<button class="mobile-menu-button" type="button" aria-label="Menu">
+    <i class="fa-solid fa-bars"></i>
+</button>
+
+Vous aurez :
+
+<header class="topbar">
+
+    <div class="brand">
+        <img src="images/logo.png" alt="Entreprise">
+
+        <div class="brand-text">
+            <strong>ENTREPRISE</strong>
+            <span>Ensemble, construisons l'avenir</span>
+        </div>
+    </div>
+
+
+    <!-- MENU MOBILE -->
+    <button class="mobile-menu-button"
+            type="button"
+            aria-label="Menu">
+
+        <i class="fa-solid fa-bars"></i>
+
+    </button>
+
+
+    <!-- MENU PRINCIPAL -->
+    <nav class="main-nav">
+
+        <a href="index.html" class="nav-item active">
+            <i class="fa-solid fa-house"></i>
+            <span>Accueil</span>
+        </a>
+
+        <a href="documents.html" class="nav-item">
+            <i class="fa-regular fa-folder"></i>
+            <span>Documents</span>
+        </a>
+
+        <a href="actualites.html" class="nav-item">
+            <i class="fa-regular fa-newspaper"></i>
+            <span>Actualités</span>
+        </a>
+
+    </nav>
+
+
+    <div class="top-actions">
+        ...
+    </div>
+
+</header>
+
+2. CSS du bouton
+
+.mobile-menu-button {
+
+    display: none;
+
+    width: 42px;
+    height: 42px;
+
+    border: none;
+
+    background: transparent;
+
+    border-radius: 9px;
+
+    color: #172033;
+
+    font-size: 19px;
+
+    cursor: pointer;
+}
+
+.mobile-menu-button:hover {
+    background: #f1f4f8;
+}
+
+3. Modifier le responsive
+
+Au lieu de :
+
+@media (max-width: 800px) {
+
+    .main-nav {
+        display: none;
+    }
+
+}
+
+mettez :
+
+@media (max-width: 800px) {
+
+    .mobile-menu-button {
+        display: flex;
+
+        align-items: center;
+        justify-content: center;
+    }
+
+    .main-nav {
+        display: none;
+
+        position: fixed;
+
+        top: 64px;
+
+        left: 10px;
+        right: 10px;
+
+        height: auto;
+
+        padding: 10px;
+
+        background: white;
+
+        border: 1px solid var(--border);
+
+        border-radius: 14px;
+
+        box-shadow:
+            0 15px 40px rgba(0, 0, 0, .15);
+
+        flex-direction: column;
+
+        align-items: stretch;
+
+        justify-content: flex-start;
+
+        gap: 4px;
+
+        z-index: 4000;
+    }
+
+
+    .main-nav.show {
+        display: flex;
+    }
+
+
+    .nav-item {
+
+        height: 48px;
+
+        width: 100%;
+
+        padding: 0 15px;
+
+        border-radius: 8px;
+
+        justify-content: flex-start;
+
+        gap: 12px;
+    }
+
+
+    .nav-item.active::after {
+        display: none;
+    }
+
+
+    .nav-item.active {
+        background: #edf4ff;
+    }
+
+
+    .nav-item .arrow {
+        margin-left: auto;
+    }
+
+}
+
+4. Ajouter le JavaScript
+
+Dans script.js :
+
+const mobileMenuButton =
+    document.querySelector(".mobile-menu-button");
+
+const mainNav =
+    document.querySelector(".main-nav");
+
+
+if (mobileMenuButton && mainNav) {
+
+    mobileMenuButton.addEventListener("click", (event) => {
+
+        event.stopPropagation();
+
+        mainNav.classList.toggle("show");
+
+    });
+
+
+    mainNav.addEventListener("click", (event) => {
+
+        event.stopPropagation();
+
+    });
+
+
+    document.addEventListener("click", () => {
+
+        mainNav.classList.remove("show");
+
+    });
+
+}
+
+Résultat sur mobile
+
+Le topbar devient :
+
+┌──────────────────────────────────────────┐
+│ ☰   🔷                         ⠿    👤  │
+└──────────────────────────────────────────┘
+ ↓
+┌──────────────────────────────────────────┐
+│ 🏠  Accueil                         ›    │
+│ 📁  Documents                       ›    │
+│ 📰  Actualités                      ›    │
+└──────────────────────────────────────────┘
+
+Et sur desktop, rien ne change :
+
+┌─────────────────────────────────────────────────────────────┐
+│ LOGO     Accueil    Documents    Actualités    🔍   ⠿   👤 │
+└─────────────────────────────────────────────────────────────┘
+
+Encore mieux pour votre portail
+
+Comme vous avez seulement 3 menus, je recommande cette approche plutôt que d'essayer de faire tenir les trois menus horizontalement sur un petit écran. On obtient ainsi un header mobile propre :
+
+☰ Menu | Logo | Applications | Avatar
+
+avec les trois rubriques dans un panneau déroulant.

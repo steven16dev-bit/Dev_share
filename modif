@@ -1,256 +1,2334 @@
-menu principal 
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-Oui, c'est normal avec le CSS actuel : nous avons mis :
+<title>Portail Documents</title>
 
-@media (max-width: 800px) {
-    .main-nav {
-        display: none;
-    }
+<style>
+
+/* =========================================================
+   RESET
+========================================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-Donc le menu principal est simplement caché sur mobile. Pour un portail avec 3 rubriques, je recommande de le remplacer par un bouton hamburger.
-
-1. Dans le HTML du topbar
-
-Ajoutez ce bouton juste avant <nav class="main-nav"> :
-
-<button class="mobile-menu-button" type="button" aria-label="Menu">
-    <i class="fa-solid fa-bars"></i>
-</button>
-
-Vous aurez :
-
-<header class="topbar">
-
-    <div class="brand">
-        <img src="images/logo.png" alt="Entreprise">
-
-        <div class="brand-text">
-            <strong>ENTREPRISE</strong>
-            <span>Ensemble, construisons l'avenir</span>
-        </div>
-    </div>
+body {
+    font-family: Inter, Arial, sans-serif;
+    background: #f5f7fb;
+    color: #172033;
+}
 
 
-    <!-- MENU MOBILE -->
-    <button class="mobile-menu-button"
-            type="button"
-            aria-label="Menu">
+/* =========================================================
+   HEADER
+========================================================= */
 
-        <i class="fa-solid fa-bars"></i>
+.header {
+    height: 76px;
+    background: #fff;
+    border-bottom: 1px solid #e5e9f0;
 
-    </button>
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 28px;
+
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.logo-icon {
+    width: 38px;
+    height: 38px;
+
+    border-radius: 10px;
+
+    background: #1677ff;
+
+    color: white;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-weight: bold;
+}
+
+.nav {
+    display: flex;
+    gap: 35px;
+}
+
+.nav a {
+    text-decoration: none;
+    color: #344054;
+    font-size: 14px;
+}
+
+.nav a.active {
+    color: #1677ff;
+    font-weight: 600;
+}
+
+.header-search {
+    width: 260px;
+}
+
+.header-search input {
+    width: 100%;
+    height: 40px;
+
+    border: 1px solid #e1e5eb;
+    border-radius: 22px;
+
+    padding: 0 18px;
+
+    outline: none;
+}
 
 
-    <!-- MENU PRINCIPAL -->
-    <nav class="main-nav">
+/* =========================================================
+   LAYOUT
+========================================================= */
 
-        <a href="index.html" class="nav-item active">
-            <i class="fa-solid fa-house"></i>
-            <span>Accueil</span>
-        </a>
+.layout {
+    display: grid;
 
-        <a href="documents.html" class="nav-item">
-            <i class="fa-regular fa-folder"></i>
-            <span>Documents</span>
-        </a>
+    grid-template-columns: 250px 1fr 48%;
 
-        <a href="actualites.html" class="nav-item">
-            <i class="fa-regular fa-newspaper"></i>
-            <span>Actualités</span>
-        </a>
-
-    </nav>
+    height: calc(100vh - 76px);
+}
 
 
-    <div class="top-actions">
-        ...
-    </div>
+/* =========================================================
+   SIDEBAR
+========================================================= */
 
-</header>
+.sidebar {
+    background: white;
+    border-right: 1px solid #e5e9f0;
 
-2. CSS du bouton
+    padding: 22px 14px;
 
-.mobile-menu-button {
+    overflow-y: auto;
+}
 
+.sidebar-title {
+    font-size: 17px;
+    font-weight: 700;
+
+    padding: 0 10px 18px;
+}
+
+.tree {
+    list-style: none;
+}
+
+.tree-item {
+    margin-bottom: 3px;
+}
+
+.tree-row {
+    min-height: 40px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    padding: 7px 9px;
+
+    border-radius: 8px;
+
+    cursor: pointer;
+
+    font-size: 14px;
+}
+
+.tree-row:hover {
+    background: #f1f6ff;
+}
+
+.tree-row.active {
+    background: #eaf3ff;
+    color: #1677ff;
+    font-weight: 600;
+}
+
+.folder-arrow {
+    width: 16px;
+
+    text-align: center;
+
+    font-size: 11px;
+
+    transition: transform .2s;
+}
+
+.folder-arrow.open {
+    transform: rotate(90deg);
+}
+
+.folder-icon {
+    width: 20px;
+}
+
+.folder-name {
+    flex: 1;
+}
+
+.file-count {
+    min-width: 26px;
+    height: 22px;
+
+    padding: 0 7px;
+
+    border-radius: 12px;
+
+    background: #eef2f7;
+
+    color: #667085;
+
+    font-size: 11px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tree-row.active .file-count {
+    background: #1677ff;
+    color: white;
+}
+
+.children {
     display: none;
 
-    width: 42px;
-    height: 42px;
+    padding-left: 18px;
+}
 
-    border: none;
+.children.open {
+    display: block;
+}
 
-    background: transparent;
 
-    border-radius: 9px;
+/* =========================================================
+   CONTENT
+========================================================= */
 
-    color: #172033;
+.content {
+    padding: 26px;
 
-    font-size: 19px;
+    overflow-y: auto;
+
+    min-width: 0;
+}
+
+.page-title {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 20px;
+}
+
+.page-title h1 {
+    font-size: 25px;
+}
+
+.page-title p {
+    color: #667085;
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+
+/* =========================================================
+   FILTERS
+========================================================= */
+
+.filters {
+    background: white;
+
+    border: 1px solid #e5e9f0;
+
+    border-radius: 12px;
+
+    padding: 15px;
+
+    display: grid;
+
+    grid-template-columns: 1fr 150px 150px 180px;
+
+    gap: 10px;
+
+    margin-bottom: 20px;
+}
+
+.input,
+.select {
+    height: 40px;
+
+    border: 1px solid #dfe4ea;
+
+    border-radius: 8px;
+
+    padding: 0 12px;
+
+    outline: none;
+
+    background: white;
+}
+
+.input:focus,
+.select:focus {
+    border-color: #1677ff;
+}
+
+
+/* =========================================================
+   TOOLBAR
+========================================================= */
+
+.toolbar {
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    margin-bottom: 15px;
+}
+
+.result-count {
+    font-size: 13px;
+    color: #667085;
+}
+
+
+/* =========================================================
+   DOCUMENT GRID
+========================================================= */
+
+.documents {
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+
+    gap: 16px;
+}
+
+.document-card {
+    background: white;
+
+    border: 1px solid #e5e9f0;
+
+    border-radius: 12px;
+
+    overflow: hidden;
+
+    transition: .2s;
+}
+
+.document-card:hover {
+    transform: translateY(-2px);
+
+    box-shadow: 0 8px 25px rgba(16, 24, 40, .08);
+}
+
+
+/* PDF COVER */
+
+.pdf-cover {
+    height: 220px;
+
+    background: #eef2f6;
+
+    position: relative;
+
+    overflow: hidden;
 
     cursor: pointer;
 }
 
-.mobile-menu-button:hover {
-    background: #f1f4f8;
+.pdf-cover iframe {
+    width: 100%;
+    height: 100%;
+
+    border: none;
+
+    pointer-events: none;
+
+    transform: scale(1);
 }
 
-3. Modifier le responsive
+.pdf-label {
+    position: absolute;
 
-Au lieu de :
+    top: 10px;
+    left: 10px;
 
-@media (max-width: 800px) {
+    background: #e53935;
 
-    .main-nav {
+    color: white;
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    padding: 5px 7px;
+
+    border-radius: 5px;
+}
+
+
+/* CARD INFO */
+
+.card-body {
+    padding: 13px;
+}
+
+.file-name {
+    font-size: 13px;
+
+    font-weight: 600;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+}
+
+.file-meta {
+    display: flex;
+
+    gap: 8px;
+
+    color: #667085;
+
+    font-size: 11px;
+
+    margin-top: 6px;
+}
+
+.card-actions {
+    display: flex;
+
+    gap: 8px;
+
+    margin-top: 12px;
+}
+
+.btn {
+    flex: 1;
+
+    height: 34px;
+
+    border-radius: 7px;
+
+    border: 1px solid #dfe4ea;
+
+    background: white;
+
+    cursor: pointer;
+
+    font-size: 12px;
+}
+
+.btn:hover {
+    background: #f5f8fc;
+}
+
+.btn.primary {
+    background: #1677ff;
+
+    color: white;
+
+    border-color: #1677ff;
+}
+
+
+/* =========================================================
+   PAGINATION
+========================================================= */
+
+.pagination {
+    display: flex;
+
+    justify-content: center;
+
+    gap: 5px;
+
+    margin-top: 25px;
+
+    padding-bottom: 20px;
+}
+
+.page-btn {
+    width: 36px;
+    height: 36px;
+
+    border: 1px solid #dfe4ea;
+
+    background: white;
+
+    border-radius: 7px;
+
+    cursor: pointer;
+}
+
+.page-btn.active {
+    background: #1677ff;
+    color: white;
+
+    border-color: #1677ff;
+}
+
+
+/* =========================================================
+   PDF VIEWER
+========================================================= */
+
+.viewer {
+    background: #17202d;
+
+    display: flex;
+
+    flex-direction: column;
+
+    min-width: 0;
+}
+
+.viewer-header {
+    height: 58px;
+
+    background: #202b3a;
+
+    color: white;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    padding: 0 16px;
+}
+
+.viewer-title {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    font-size: 13px;
+
+    font-weight: 600;
+}
+
+.viewer-close {
+    border: none;
+
+    background: transparent;
+
+    color: white;
+
+    font-size: 22px;
+
+    cursor: pointer;
+}
+
+.viewer-toolbar {
+    height: 48px;
+
+    background: #17202d;
+
+    color: white;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 12px;
+}
+
+.viewer-toolbar button {
+    border: none;
+
+    background: transparent;
+
+    color: white;
+
+    cursor: pointer;
+
+    font-size: 13px;
+}
+
+.viewer-body {
+    flex: 1;
+
+    padding: 15px;
+
+    display: flex;
+
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+.viewer-body iframe {
+    width: 100%;
+    height: 100%;
+
+    border: none;
+
+    background: #555;
+}
+
+
+/* =========================================================
+   EMPTY
+========================================================= */
+
+.empty {
+    grid-column: 1 / -1;
+
+    background: white;
+
+    border: 1px dashed #ccd3dd;
+
+    border-radius: 12px;
+
+    padding: 50px;
+
+    text-align: center;
+
+    color: #667085;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media(max-width: 1200px) {
+
+    .layout {
+        grid-template-columns: 220px 1fr;
+    }
+
+    .viewer {
         display: none;
     }
 
+    .documents {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
-mettez :
+@media(max-width: 800px) {
 
-@media (max-width: 800px) {
-
-    .mobile-menu-button {
-        display: flex;
-
-        align-items: center;
-        justify-content: center;
+    .nav {
+        display: none;
     }
 
-    .main-nav {
-        display: none;
+    .header-search {
+        width: 180px;
+    }
 
-        position: fixed;
-
-        top: 64px;
-
-        left: 10px;
-        right: 10px;
+    .layout {
+        display: block;
 
         height: auto;
+    }
 
-        padding: 10px;
+    .sidebar {
+        border-right: none;
+        border-bottom: 1px solid #e5e9f0;
+    }
 
-        background: white;
+    .documents {
+        grid-template-columns: 1fr;
+    }
 
-        border: 1px solid var(--border);
+    .filters {
+        grid-template-columns: 1fr;
+    }
 
-        border-radius: 14px;
+    .content {
+        padding: 15px;
+    }
+}
 
-        box-shadow:
-            0 15px 40px rgba(0, 0, 0, .15);
+</style>
+</head>
 
-        flex-direction: column;
 
-        align-items: stretch;
+<body>
 
-        justify-content: flex-start;
 
-        gap: 4px;
+<!-- =====================================================
+     HEADER
+===================================================== -->
 
-        z-index: 4000;
+<header class="header">
+
+    <div class="logo">
+
+        <div class="logo-icon">
+            M
+        </div>
+
+        <div>
+            MON ENTREPRISE
+        </div>
+
+    </div>
+
+
+    <nav class="nav">
+
+        <a href="#">Accueil</a>
+
+        <a href="#">Actualités</a>
+
+        <a class="active" href="#">
+            Documents
+        </a>
+
+        <a href="#">Services</a>
+
+        <a href="#">Annuaire</a>
+
+    </nav>
+
+
+    <div class="header-search">
+
+        <input
+            id="globalSearch"
+            type="text"
+            placeholder="Rechercher..."
+        >
+
+    </div>
+
+</header>
+
+
+
+<!-- =====================================================
+     MAIN LAYOUT
+===================================================== -->
+
+<div class="layout">
+
+
+<!-- =====================================================
+     SIDEBAR
+===================================================== -->
+
+<aside class="sidebar">
+
+    <div class="sidebar-title">
+        Documents
+    </div>
+
+    <ul
+        class="tree"
+        id="folderTree"
+    ></ul>
+
+</aside>
+
+
+
+<!-- =====================================================
+     CONTENT
+===================================================== -->
+
+<main class="content">
+
+
+    <div class="page-title">
+
+        <div>
+
+            <h1 id="currentFolderTitle">
+                Tous les documents
+            </h1>
+
+            <p id="currentFolderDescription">
+                Consultez les documents disponibles
+            </p>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- FILTERS -->
+
+    <div class="filters">
+
+        <input
+            class="input"
+            id="searchInput"
+            placeholder="🔍 Rechercher un document..."
+        >
+
+
+        <select
+            class="select"
+            id="typeFilter"
+        >
+
+            <option value="">
+                Tous les types
+            </option>
+
+            <option value="pdf">
+                PDF
+            </option>
+
+        </select>
+
+
+        <select
+            class="select"
+            id="yearFilter"
+        >
+
+            <option value="">
+                Toutes les années
+            </option>
+
+        </select>
+
+
+        <select
+            class="select"
+            id="sortFilter"
+        >
+
+            <option value="date-desc">
+                Plus récents
+            </option>
+
+            <option value="date-asc">
+                Plus anciens
+            </option>
+
+            <option value="name-asc">
+                Nom A → Z
+            </option>
+
+            <option value="name-desc">
+                Nom Z → A
+            </option>
+
+        </select>
+
+    </div>
+
+
+
+    <div class="toolbar">
+
+        <div
+            class="result-count"
+            id="resultCount"
+        >
+            0 documents
+        </div>
+
+    </div>
+
+
+
+    <!-- DOCUMENTS -->
+
+    <div
+        class="documents"
+        id="documentsContainer"
+    ></div>
+
+
+    <!-- PAGINATION -->
+
+    <div
+        class="pagination"
+        id="pagination"
+    ></div>
+
+
+</main>
+
+
+
+<!-- =====================================================
+     PDF VIEWER
+===================================================== -->
+
+<section class="viewer">
+
+    <div class="viewer-header">
+
+        <div
+            class="viewer-title"
+            id="viewerTitle"
+        >
+            📄 Aucun document sélectionné
+        </div>
+
+        <button
+            class="viewer-close"
+            onclick="closeViewer()"
+        >
+            ×
+        </button>
+
+    </div>
+
+
+    <div class="viewer-toolbar">
+
+        <button onclick="previousPage()">
+            ◀
+        </button>
+
+        <span>
+            Page
+        </span>
+
+        <input
+            id="pageNumber"
+            value="1"
+            style="
+                width:45px;
+                text-align:center;
+                background:#263445;
+                border:1px solid #435166;
+                color:white;
+                border-radius:5px;
+                padding:5px;
+            "
+        >
+
+        <button onclick="nextPage()">
+            ▶
+        </button>
+
+        <span>|</span>
+
+        <button onclick="zoomOut()">
+            −
+        </button>
+
+        <span id="zoomValue">
+            100%
+        </span>
+
+        <button onclick="zoomIn()">
+            +
+        </button>
+
+        <span>|</span>
+
+        <button onclick="fullscreenViewer()">
+            ⛶
+        </button>
+
+        <button onclick="downloadCurrent()">
+            ↓
+        </button>
+
+    </div>
+
+
+    <div class="viewer-body">
+
+        <iframe
+            id="pdfViewer"
+            src=""
+        ></iframe>
+
+    </div>
+
+</section>
+
+
+</div>
+
+
+
+<script>
+
+
+/* =========================================================
+   DONNÉES DES DOSSIERS
+========================================================= */
+
+const folders = [
+
+    {
+        id: "all",
+        name: "Tous les documents",
+        icon: "📚",
+        parent: null
+    },
+
+    {
+        id: "administratif",
+        name: "Dossiers administratifs",
+        icon: "📁",
+        parent: null
+    },
+
+    {
+        id: "rh",
+        name: "Ressources humaines",
+        icon: "📁",
+        parent: null
+    },
+
+    {
+        id: "notes",
+        name: "Notes & Circulaires",
+        icon: "📁",
+        parent: null
+    },
+
+    {
+        id: "procedures",
+        name: "Procédures",
+        icon: "📁",
+        parent: null
+    },
+
+    {
+        id: "guides",
+        name: "Guides",
+        icon: "📁",
+        parent: null
+    },
+
+
+    /* SOUS-DOSSIERS */
+
+    {
+        id: "administratif-rapports",
+        name: "Rapports",
+        icon: "📂",
+        parent: "administratif"
+    },
+
+    {
+        id: "administratif-decisions",
+        name: "Décisions",
+        icon: "📂",
+        parent: "administratif"
+    },
+
+    {
+        id: "rh-formation",
+        name: "Formation",
+        icon: "📂",
+        parent: "rh"
+    },
+
+    {
+        id: "rh-conges",
+        name: "Congés",
+        icon: "📂",
+        parent: "rh"
+    },
+
+    {
+        id: "procedures-achats",
+        name: "Achats",
+        icon: "📂",
+        parent: "procedures"
+    },
+
+    {
+        id: "procedures-it",
+        name: "Informatique",
+        icon: "📂",
+        parent: "procedures"
+    }
+
+];
+
+
+
+/* =========================================================
+   DOCUMENTS
+========================================================= */
+
+const documents = [
+
+    {
+        id: 1,
+        name: "Rapport_Activite_2025.pdf",
+        folder: "administratif-rapports",
+        year: 2025,
+        date: "2025-12-20",
+        size: "2.4 Mo",
+        pages: 32,
+        url: "pdfs/rapport-activite-2025.pdf"
+    },
+
+    {
+        id: 2,
+        name: "Rapport_Activite_2024.pdf",
+        folder: "administratif-rapports",
+        year: 2024,
+        date: "2024-12-18",
+        size: "2.1 Mo",
+        pages: 28,
+        url: "pdfs/rapport-activite-2024.pdf"
+    },
+
+    {
+        id: 3,
+        name: "Decision_Direction_2026.pdf",
+        folder: "administratif-decisions",
+        year: 2026,
+        date: "2026-08-20",
+        size: "1.2 Mo",
+        pages: 12,
+        url: "pdfs/decision-direction-2026.pdf"
+    },
+
+    {
+        id: 4,
+        name: "Politique_Securite.pdf",
+        folder: "notes",
+        year: 2026,
+        date: "2026-06-15",
+        size: "1.8 Mo",
+        pages: 18,
+        url: "pdfs/politique-securite.pdf"
+    },
+
+    {
+        id: 5,
+        name: "Note_Service_2026.pdf",
+        folder: "notes",
+        year: 2026,
+        date: "2026-07-10",
+        size: "800 Ko",
+        pages: 8,
+        url: "pdfs/note-service-2026.pdf"
+    },
+
+    {
+        id: 6,
+        name: "Guide_Nouvel_Employe.pdf",
+        folder: "rh-formation",
+        year: 2026,
+        date: "2026-05-20",
+        size: "3.1 Mo",
+        pages: 28,
+        url: "pdfs/guide-employe.pdf"
+    },
+
+    {
+        id: 7,
+        name: "Programme_Formation_2026.pdf",
+        folder: "rh-formation",
+        year: 2026,
+        date: "2026-03-15",
+        size: "1.4 Mo",
+        pages: 16,
+        url: "pdfs/programme-formation.pdf"
+    },
+
+    {
+        id: 8,
+        name: "Formulaire_Conges.pdf",
+        folder: "rh-conges",
+        year: 2026,
+        date: "2026-01-12",
+        size: "400 Ko",
+        pages: 3,
+        url: "pdfs/formulaire-conges.pdf"
+    },
+
+    {
+        id: 9,
+        name: "Procedure_Achat.pdf",
+        folder: "procedures-achats",
+        year: 2026,
+        date: "2026-04-01",
+        size: "1.2 Mo",
+        pages: 12,
+        url: "pdfs/procedure-achat.pdf"
+    },
+
+    {
+        id: 10,
+        name: "Procedure_Developpement.pdf",
+        folder: "procedures-it",
+        year: 2026,
+        date: "2026-02-15",
+        size: "2.2 Mo",
+        pages: 21,
+        url: "pdfs/procedure-developpement.pdf"
+    },
+
+    {
+        id: 11,
+        name: "Guide_Securite_Utilisateur.pdf",
+        folder: "guides",
+        year: 2025,
+        date: "2025-10-05",
+        size: "1.9 Mo",
+        pages: 20,
+        url: "pdfs/guide-securite.pdf"
+    },
+
+    {
+        id: 12,
+        name: "Guide_Applications.pdf",
+        folder: "guides",
+        year: 2026,
+        date: "2026-02-01",
+        size: "2.7 Mo",
+        pages: 30,
+        url: "pdfs/guide-applications.pdf"
+    }
+
+];
+
+
+
+/* =========================================================
+   VARIABLES
+========================================================= */
+
+let currentFolder = "all";
+
+let currentPage = 1;
+
+const pageSize = 6;
+
+let currentDocument = null;
+
+let zoom = 100;
+
+
+
+/* =========================================================
+   CONSTRUIRE L'ARBRE DES DOSSIERS
+========================================================= */
+
+function buildFolderTree() {
+
+    const tree = document.getElementById("folderTree");
+
+    tree.innerHTML = "";
+
+    folders
+        .filter(folder => folder.parent === null)
+        .forEach(folder => {
+
+            tree.appendChild(
+                createFolderElement(folder)
+            );
+
+        });
+
+}
+
+
+
+function createFolderElement(folder) {
+
+    const li = document.createElement("li");
+
+    li.className = "tree-item";
+
+
+    const row = document.createElement("div");
+
+    row.className = "tree-row";
+
+
+    if (folder.id === currentFolder) {
+
+        row.classList.add("active");
+
     }
 
 
-    .main-nav.show {
-        display: flex;
+    const children =
+        folders.filter(
+            f => f.parent === folder.id
+        );
+
+
+    /* flèche */
+
+    const arrow =
+        document.createElement("span");
+
+    arrow.className = "folder-arrow";
+
+    arrow.innerHTML =
+        children.length ? "▶" : "";
+
+
+    /* icône */
+
+    const icon =
+        document.createElement("span");
+
+    icon.className = "folder-icon";
+
+    icon.innerHTML = folder.icon;
+
+
+    /* nom */
+
+    const name =
+        document.createElement("span");
+
+    name.className = "folder-name";
+
+    name.textContent = folder.name;
+
+
+    /* compteur */
+
+    const count =
+        document.createElement("span");
+
+    count.className = "file-count";
+
+    count.textContent =
+        getFolderCount(folder.id);
+
+
+    row.append(
+        arrow,
+        icon,
+        name,
+        count
+    );
+
+
+    row.onclick = function(e) {
+
+        e.stopPropagation();
+
+        selectFolder(folder.id);
+
+    };
+
+
+    li.appendChild(row);
+
+
+    /* enfants */
+
+    if (children.length) {
+
+        const childrenContainer =
+            document.createElement("div");
+
+        childrenContainer.className =
+            "children";
+
+
+        children.forEach(child => {
+
+            childrenContainer.appendChild(
+                createFolderElement(child)
+            );
+
+        });
+
+
+        li.appendChild(childrenContainer);
+
+
+        arrow.onclick = function(e) {
+
+            e.stopPropagation();
+
+            childrenContainer.classList.toggle(
+                "open"
+            );
+
+            arrow.classList.toggle(
+                "open"
+            );
+
+        };
+
     }
 
 
-    .nav-item {
+    return li;
 
-        height: 48px;
+}
 
-        width: 100%;
 
-        padding: 0 15px;
 
-        border-radius: 8px;
+/* =========================================================
+   COMPTEUR DES DOSSIERS
+========================================================= */
 
-        justify-content: flex-start;
+function getFolderCount(folderId) {
 
-        gap: 12px;
+    const childFolders =
+        folders
+        .filter(
+            f => f.parent === folderId
+        )
+        .map(
+            f => f.id
+        );
+
+
+    let ids = [
+        folderId,
+        ...getAllChildren(folderId)
+    ];
+
+
+    return documents.filter(
+        document =>
+            ids.includes(document.folder)
+    ).length;
+
+}
+
+
+
+function getAllChildren(folderId) {
+
+    let result = [];
+
+
+    const children =
+        folders.filter(
+            f => f.parent === folderId
+        );
+
+
+    children.forEach(child => {
+
+        result.push(child.id);
+
+        result.push(
+            ...getAllChildren(child.id)
+        );
+
+    });
+
+
+    return result;
+
+}
+
+
+
+/* =========================================================
+   SELECTION DOSSIER
+========================================================= */
+
+function selectFolder(folderId) {
+
+    currentFolder = folderId;
+
+    currentPage = 1;
+
+    const folder =
+        folders.find(
+            f => f.id === folderId
+        );
+
+
+    document.getElementById(
+        "currentFolderTitle"
+    ).textContent =
+        folder.name;
+
+
+    document.getElementById(
+        "currentFolderDescription"
+    ).textContent =
+        getFolderCount(folderId)
+        + " document(s) disponible(s)";
+
+
+    buildFolderTree();
+
+    renderDocuments();
+
+}
+
+
+
+/* =========================================================
+   DOCUMENTS DU DOSSIER
+========================================================= */
+
+function getCurrentDocuments() {
+
+    let result = [...documents];
+
+
+    if (currentFolder !== "all") {
+
+        const foldersIncluded = [
+
+            currentFolder,
+
+            ...getAllChildren(currentFolder)
+
+        ];
+
+
+        result =
+            result.filter(
+                document =>
+                    foldersIncluded.includes(
+                        document.folder
+                    )
+            );
+
     }
 
 
-    .nav-item.active::after {
-        display: none;
+    return result;
+
+}
+
+
+
+/* =========================================================
+   FILTRES
+========================================================= */
+
+function applyFilters() {
+
+    let result =
+        getCurrentDocuments();
+
+
+    const search =
+        document.getElementById(
+            "searchInput"
+        ).value
+        .toLowerCase();
+
+
+    const type =
+        document.getElementById(
+            "typeFilter"
+        ).value;
+
+
+    const year =
+        document.getElementById(
+            "yearFilter"
+        ).value;
+
+
+    const sort =
+        document.getElementById(
+            "sortFilter"
+        ).value;
+
+
+    if (search) {
+
+        result =
+            result.filter(
+                doc =>
+                    doc.name
+                    .toLowerCase()
+                    .includes(search)
+            );
+
     }
 
 
-    .nav-item.active {
-        background: #edf4ff;
+    if (type) {
+
+        result =
+            result.filter(
+                doc =>
+                    type === "pdf"
+            );
+
     }
 
 
-    .nav-item .arrow {
-        margin-left: auto;
+    if (year) {
+
+        result =
+            result.filter(
+                doc =>
+                    String(doc.year) === year
+            );
+
+    }
+
+
+    /* TRI */
+
+    result.sort(
+        (a, b) => {
+
+            if (sort === "date-desc") {
+
+                return new Date(b.date)
+                    - new Date(a.date);
+
+            }
+
+            if (sort === "date-asc") {
+
+                return new Date(a.date)
+                    - new Date(b.date);
+
+            }
+
+            if (sort === "name-asc") {
+
+                return a.name
+                    .localeCompare(b.name);
+
+            }
+
+            if (sort === "name-desc") {
+
+                return b.name
+                    .localeCompare(a.name);
+
+            }
+
+        }
+    );
+
+
+    return result;
+
+}
+
+
+
+/* =========================================================
+   AFFICHAGE DOCUMENTS
+========================================================= */
+
+function renderDocuments() {
+
+    const container =
+        document.getElementById(
+            "documentsContainer"
+        );
+
+
+    container.innerHTML = "";
+
+
+    const filtered =
+        applyFilters();
+
+
+    document.getElementById(
+        "resultCount"
+    ).textContent =
+        filtered.length
+        + " document(s)";
+
+
+    const totalPages =
+        Math.ceil(
+            filtered.length / pageSize
+        );
+
+
+    if (currentPage > totalPages) {
+
+        currentPage =
+            Math.max(totalPages, 1);
+
+    }
+
+
+    const start =
+        (currentPage - 1)
+        * pageSize;
+
+
+    const pageDocuments =
+        filtered.slice(
+            start,
+            start + pageSize
+        );
+
+
+    if (!pageDocuments.length) {
+
+        container.innerHTML = `
+            <div class="empty">
+                <div style="font-size:40px">
+                    📄
+                </div>
+
+                <br>
+
+                Aucun document trouvé.
+            </div>
+        `;
+
+        renderPagination(0);
+
+        return;
+
+    }
+
+
+    pageDocuments.forEach(
+        document => {
+
+            const card =
+                document.createElement(
+                    "div"
+                );
+
+            card.className =
+                "document-card";
+
+
+            card.innerHTML = `
+
+                <div
+                    class="pdf-cover"
+                    onclick="openViewer(${document.id})"
+                >
+
+                    <span class="pdf-label">
+                        PDF
+                    </span>
+
+                    <iframe
+                        src="${document.url}#page=1&toolbar=0&navpanes=0"
+                    ></iframe>
+
+                </div>
+
+
+                <div class="card-body">
+
+                    <div
+                        class="file-name"
+                        title="${document.name}"
+                    >
+                        ${document.name}
+                    </div>
+
+
+                    <div class="file-meta">
+
+                        <span>
+                            ${document.pages} pages
+                        </span>
+
+                        <span>
+                            •
+                        </span>
+
+                        <span>
+                            ${document.size}
+                        </span>
+
+                    </div>
+
+
+                    <div class="card-actions">
+
+                        <button
+                            class="btn primary"
+                            onclick="openViewer(${document.id})"
+                        >
+                            👁 Voir
+                        </button>
+
+
+                        <button
+                            class="btn"
+                            onclick="downloadDocument(${document.id})"
+                        >
+                            ↓ Télécharger
+                        </button>
+
+                    </div>
+
+                </div>
+
+            `;
+
+
+            container.appendChild(card);
+
+        }
+    );
+
+
+    renderPagination(totalPages);
+
+}
+
+
+
+/* =========================================================
+   PAGINATION
+========================================================= */
+
+function renderPagination(totalPages) {
+
+    const pagination =
+        document.getElementById(
+            "pagination"
+        );
+
+
+    pagination.innerHTML = "";
+
+
+    if (totalPages <= 1) {
+
+        return;
+
+    }
+
+
+    const previous =
+        createPageButton(
+            "‹",
+            currentPage - 1
+        );
+
+
+    previous.disabled =
+        currentPage === 1;
+
+
+    pagination.appendChild(previous);
+
+
+    for (
+        let i = 1;
+        i <= totalPages;
+        i++
+    ) {
+
+        const button =
+            createPageButton(
+                i,
+                i
+            );
+
+
+        if (i === currentPage) {
+
+            button.classList.add(
+                "active"
+            );
+
+        }
+
+
+        pagination.appendChild(button);
+
+    }
+
+
+    const next =
+        createPageButton(
+            "›",
+            currentPage + 1
+        );
+
+
+    next.disabled =
+        currentPage === totalPages;
+
+
+    pagination.appendChild(next);
+
+}
+
+
+
+function createPageButton(
+    text,
+    page
+) {
+
+    const button =
+        document.createElement(
+            "button"
+        );
+
+    button.className =
+        "page-btn";
+
+    button.textContent =
+        text;
+
+
+    button.onclick = function() {
+
+        if (page < 1) return;
+
+        currentPage = page;
+
+        renderDocuments();
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+
+    };
+
+
+    return button;
+
+}
+
+
+
+/* =========================================================
+   PDF VIEWER
+========================================================= */
+
+function openViewer(id) {
+
+    const document =
+        documents.find(
+            doc => doc.id === id
+        );
+
+
+    if (!document) return;
+
+
+    currentDocument =
+        document;
+
+
+    document.getElementById(
+        "viewerTitle"
+    ).textContent =
+        "📄 " + document.name;
+
+
+    document.getElementById(
+        "pdfViewer"
+    ).src =
+        document.url
+        + "#page=1&toolbar=1&navpanes=1";
+
+
+    document.getElementById(
+        "pageNumber"
+    ).value = 1;
+
+
+    zoom = 100;
+
+
+    document.getElementById(
+        "zoomValue"
+    ).textContent =
+        zoom + "%";
+
+}
+
+
+
+/* =========================================================
+   FERMER VIEWER
+========================================================= */
+
+function closeViewer() {
+
+    document.getElementById(
+        "pdfViewer"
+    ).src = "";
+
+
+    currentDocument = null;
+
+
+    document.getElementById(
+        "viewerTitle"
+    ).textContent =
+        "📄 Aucun document sélectionné";
+
+}
+
+
+
+/* =========================================================
+   DOWNLOAD
+========================================================= */
+
+function downloadDocument(id) {
+
+    const doc =
+        documents.find(
+            d => d.id === id
+        );
+
+
+    if (!doc) return;
+
+
+    const link =
+        document.createElement("a");
+
+
+    link.href =
+        doc.url;
+
+
+    link.download =
+        doc.name;
+
+
+    link.target =
+        "_blank";
+
+
+    link.click();
+
+}
+
+
+
+function downloadCurrent() {
+
+    if (currentDocument) {
+
+        downloadDocument(
+            currentDocument.id
+        );
+
     }
 
 }
 
-4. Ajouter le JavaScript
-
-Dans script.js :
-
-const mobileMenuButton =
-    document.querySelector(".mobile-menu-button");
-
-const mainNav =
-    document.querySelector(".main-nav");
 
 
-if (mobileMenuButton && mainNav) {
+/* =========================================================
+   ZOOM
+========================================================= */
 
-    mobileMenuButton.addEventListener("click", (event) => {
+function zoomIn() {
 
-        event.stopPropagation();
+    zoom += 10;
 
-        mainNav.classList.toggle("show");
+    document.getElementById(
+        "zoomValue"
+    ).textContent =
+        zoom + "%";
 
-    });
-
-
-    mainNav.addEventListener("click", (event) => {
-
-        event.stopPropagation();
-
-    });
+}
 
 
-    document.addEventListener("click", () => {
+function zoomOut() {
 
-        mainNav.classList.remove("show");
+    zoom =
+        Math.max(
+            50,
+            zoom - 10
+        );
+
+    document.getElementById(
+        "zoomValue"
+    ).textContent =
+        zoom + "%";
+
+}
+
+
+
+/* =========================================================
+   PAGE PDF
+========================================================= */
+
+function nextPage() {
+
+    if (!currentDocument) return;
+
+
+    let page =
+        parseInt(
+            document.getElementById(
+                "pageNumber"
+            ).value
+        );
+
+
+    page =
+        Math.min(
+            currentDocument.pages,
+            page + 1
+        );
+
+
+    setPdfPage(page);
+
+}
+
+
+
+function previousPage() {
+
+    if (!currentDocument) return;
+
+
+    let page =
+        parseInt(
+            document.getElementById(
+                "pageNumber"
+            ).value
+        );
+
+
+    page =
+        Math.max(
+            1,
+            page - 1
+        );
+
+
+    setPdfPage(page);
+
+}
+
+
+
+function setPdfPage(page) {
+
+    document.getElementById(
+        "pageNumber"
+    ).value =
+        page;
+
+
+    document.getElementById(
+        "pdfViewer"
+    ).src =
+        currentDocument.url
+        + "#page="
+        + page
+        + "&toolbar=1&navpanes=1";
+
+}
+
+
+
+/* =========================================================
+   FULLSCREEN
+========================================================= */
+
+function fullscreenViewer() {
+
+    const viewer =
+        document.querySelector(
+            ".viewer"
+        );
+
+
+    if (
+        document.fullscreenElement
+    ) {
+
+        document.exitFullscreen();
+
+    } else {
+
+        viewer.requestFullscreen();
+
+    }
+
+}
+
+
+
+/* =========================================================
+   ANNÉES
+========================================================= */
+
+function buildYears() {
+
+    const select =
+        document.getElementById(
+            "yearFilter"
+        );
+
+
+    const years =
+        [...new Set(
+            documents.map(
+                doc => doc.year
+            )
+        )].sort(
+            (a,b) => b-a
+        );
+
+
+    years.forEach(year => {
+
+        const option =
+            document.createElement(
+                "option"
+            );
+
+        option.value =
+            year;
+
+        option.textContent =
+            year;
+
+        select.appendChild(option);
 
     });
 
 }
 
-Résultat sur mobile
 
-Le topbar devient :
 
-┌──────────────────────────────────────────┐
-│ ☰   🔷                         ⠿    👤  │
-└──────────────────────────────────────────┘
- ↓
-┌──────────────────────────────────────────┐
-│ 🏠  Accueil                         ›    │
-│ 📁  Documents                       ›    │
-│ 📰  Actualités                      ›    │
-└──────────────────────────────────────────┘
+/* =========================================================
+   RECHERCHE
+========================================================= */
 
-Et sur desktop, rien ne change :
+document.getElementById(
+    "searchInput"
+).addEventListener(
+    "input",
+    function() {
 
-┌─────────────────────────────────────────────────────────────┐
-│ LOGO     Accueil    Documents    Actualités    🔍   ⠿   👤 │
-└─────────────────────────────────────────────────────────────┘
+        currentPage = 1;
 
-Encore mieux pour votre portail
+        renderDocuments();
 
-Comme vous avez seulement 3 menus, je recommande cette approche plutôt que d'essayer de faire tenir les trois menus horizontalement sur un petit écran. On obtient ainsi un header mobile propre :
+    }
+);
 
-☰ Menu | Logo | Applications | Avatar
 
-avec les trois rubriques dans un panneau déroulant.
+document.getElementById(
+    "typeFilter"
+).addEventListener(
+    "change",
+    function() {
+
+        currentPage = 1;
+
+        renderDocuments();
+
+    }
+);
+
+
+document.getElementById(
+    "yearFilter"
+).addEventListener(
+    "change",
+    function() {
+
+        currentPage = 1;
+
+        renderDocuments();
+
+    }
+);
+
+
+document.getElementById(
+    "sortFilter"
+).addEventListener(
+    "change",
+    function() {
+
+        currentPage = 1;
+
+        renderDocuments();
+
+    }
+);
+
+
+
+/* RECHERCHE HEADER */
+
+document.getElementById(
+    "globalSearch"
+).addEventListener(
+    "input",
+    function() {
+
+        document.getElementById(
+            "searchInput"
+        ).value =
+            this.value;
+
+        currentPage = 1;
+
+        renderDocuments();
+
+    }
+);
+
+
+
+/* =========================================================
+   INITIALISATION
+========================================================= */
+
+buildYears();
+
+buildFolderTree();
+
+renderDocuments();
+
+
+</script>
+
+</body>
+</html>

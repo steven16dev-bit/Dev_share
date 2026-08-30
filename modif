@@ -1,339 +1,273 @@
-Oui. Le problème vient de buildFolderTree() : à chaque clic sur un dossier, l'arborescence est reconstruite, donc les éléments .children perdent leur état open.
+Oui. Pour simplifier la visionneuse, je vous conseille maintenant :
 
-Le mieux est de mémoriser les dossiers ouverts.
+❌ supprimer Page
 
-1. Ajoutez cette variable
+❌ supprimer Zoom
 
-Placez-la avec vos autres variables globales :
+❌ supprimer les boutons précédent/suivant
 
-let currentFolder = "all";
+❌ supprimer le bouton téléchargement de la visionneuse
 
-let currentPage = 1;
+⛶ garder Plein écran
 
-const pageSize = 6;
+↗️ ajouter Ouvrir dans un nouvel onglet
 
-let currentDocument = null;
+📄 garder le titre centré horizontalement
 
-let zoom = 100;
+Le PDF reste affiché directement dans la zone de lecture.
 
-// Mémorise les dossiers ouverts
-const openFolders = new Set();
 
+Nouvelle barre de la visionneuse
 
----
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│             Rapport_Activite_2025.pdf                    │
+│                                                          │
+│                                      ⛶    ↗              │
+└──────────────────────────────────────────────────────────┘
 
-2. Remplacez createFolderElement() par cette version
+1. Remplacez le HTML du viewer-header
 
-function createFolderElement(folder) {
+<div class="viewer-header">
 
-    const li = document.createElement("li");
+    <div class="viewer-title" id="viewerTitle">
+        Aucun document sélectionné
+    </div>
 
-    li.className = "tree-item";
+    <div class="viewer-actions">
 
+        <button
+            class="viewer-btn"
+            onclick="fullscreenViewer()"
+            title="Plein écran"
+        >
+            ⛶
+        </button>
 
-    const row = document.createElement("div");
+        <button
+            class="viewer-btn"
+            onclick="openInNewTab()"
+            title="Ouvrir dans un nouvel onglet"
+        >
+            ↗
+        </button>
 
-    row.className = "tree-row";
+        <button
+            class="viewer-close"
+            onclick="closeViewer()"
+            title="Fermer"
+        >
+            ×
+        </button>
 
+    </div>
 
-    if (folder.id === currentFolder) {
-        row.classList.add("active");
-    }
+</div>
 
+2. Supprimez complètement viewer-toolbar
 
-    const children = folders.filter(
-        f => f.parent === folder.id
-    );
+Vous n'en avez plus besoin.
 
+Supprimez donc :
 
-    /* ==============================
-       FLÈCHE
-    ============================== */
+<div class="viewer-toolbar">
+    ...
+</div>
 
-    const arrow = document.createElement("span");
+La structure devient simplement :
 
-    arrow.className = "folder-arrow";
+<section class="viewer">
 
-    arrow.innerHTML = children.length ? "▶" : "";
+    <div class="viewer-header">
 
+        <div
+            class="viewer-title"
+            id="viewerTitle"
+        >
+            Aucun document sélectionné
+        </div>
 
-    /* ==============================
-       ICÔNE
-    ============================== */
+        <div class="viewer-actions">
 
-    const icon = document.createElement("span");
+            <button
+                class="viewer-btn"
+                onclick="fullscreenViewer()"
+            >
+                ⛶
+            </button>
 
-    icon.className = "folder-icon";
+            <button
+                class="viewer-btn"
+                onclick="openInNewTab()"
+            >
+                ↗
+            </button>
 
-    icon.innerHTML = folder.icon;
+            <button
+                class="viewer-close"
+                onclick="closeViewer()"
+            >
+                ×
+            </button>
 
+        </div>
 
-    /* ==============================
-       NOM
-    ============================== */
+    </div>
 
-    const name = document.createElement("span");
 
-    name.className = "folder-name";
+    <div class="viewer-body">
 
-    name.textContent = folder.name;
+        <iframe
+            id="pdfViewer"
+            src=""
+        ></iframe>
 
+    </div>
 
-    /* ==============================
-       COMPTEUR
-    ============================== */
+</section>
 
-    const count = document.createElement("span");
+3. Nouveau CSS
 
-    count.className = "file-count";
+Remplacez l'ancien CSS de .viewer-header et ajoutez :
 
-    count.textContent = getFolderCount(folder.id);
+.viewer-header {
+    height: 58px;
 
+    background: #202b3a;
 
-    row.append(
-        arrow,
-        icon,
-        name,
-        count
-    );
+    color: white;
 
+    display: grid;
 
-    /*
-       Clic sur le nom du dossier
-       = sélectionner le dossier
-    */
+    grid-template-columns: 1fr auto 1fr;
 
-    row.onclick = function(e) {
+    align-items: center;
 
-        e.stopPropagation();
+    padding: 0 16px;
 
-        selectFolder(folder.id);
-
-    };
-
-
-    li.appendChild(row);
-
-
-    /* ==============================
-       SOUS-DOSSIERS
-    ============================== */
-
-    if (children.length) {
-
-        const childrenContainer =
-            document.createElement("div");
-
-        childrenContainer.className = "children";
-
-
-        /*
-           Restaurer l'état du dossier
-        */
-
-        if (openFolders.has(folder.id)) {
-
-            childrenContainer.classList.add("open");
-
-            arrow.classList.add("open");
-
-        }
-
-
-        children.forEach(child => {
-
-            childrenContainer.appendChild(
-                createFolderElement(child)
-            );
-
-        });
-
-
-        li.appendChild(childrenContainer);
-
-
-        /*
-           Clic uniquement sur la flèche
-           = ouvrir / fermer
-        */
-
-        arrow.onclick = function(e) {
-
-            e.stopPropagation();
-
-            if (
-                openFolders.has(folder.id)
-            ) {
-
-                openFolders.delete(folder.id);
-
-                childrenContainer.classList.remove(
-                    "open"
-                );
-
-                arrow.classList.remove(
-                    "open"
-                );
-
-            } else {
-
-                openFolders.add(folder.id);
-
-                childrenContainer.classList.add(
-                    "open"
-                );
-
-                arrow.classList.add(
-                    "open"
-                );
-
-            }
-
-        };
-
-    }
-
-
-    return li;
+    position: relative;
 }
 
 
----
+/* TITRE CENTRÉ HORIZONTALEMENT */
 
-3. Modifiez également selectFolder()
+.viewer-title {
 
-Utilisez :
+    grid-column: 2;
 
-function selectFolder(folderId) {
+    font-size: 14px;
 
-    currentFolder = folderId;
+    font-weight: 600;
 
-    currentPage = 1;
+    white-space: nowrap;
 
+    overflow: hidden;
 
-    /*
-       Ouvre automatiquement les parents
-       du dossier sélectionné
-    */
+    text-overflow: ellipsis;
 
-    openParentFolders(folderId);
+    max-width: 500px;
 
-
-    const folder = folders.find(
-        f => f.id === folderId
-    );
+    text-align: center;
+}
 
 
-    if (folder) {
+/* ACTIONS À DROITE */
 
-        document.getElementById(
-            "currentFolderTitle"
-        ).textContent = folder.name;
+.viewer-actions {
+
+    grid-column: 3;
+
+    justify-self: end;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 5px;
+}
 
 
-        document.getElementById(
-            "currentFolderDescription"
-        ).textContent =
-            getFolderCount(folderId)
-            + " document(s) disponible(s)";
+.viewer-btn,
+.viewer-close {
 
-    }
+    width: 36px;
+    height: 36px;
+
+    border: none;
+
+    background: transparent;
+
+    color: white;
+
+    border-radius: 6px;
+
+    cursor: pointer;
+
+    font-size: 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
 
 
-    /*
-       Reconstruit l'arbre mais restaure
-       automatiquement les dossiers ouverts
-    */
+.viewer-btn:hover,
+.viewer-close:hover {
 
-    buildFolderTree();
-
-    renderDocuments();
+    background: rgba(255,255,255,.12);
 
 }
 
 
----
+.viewer-close {
 
-4. Ajoutez cette fonction
-
-Elle permet de garder automatiquement les parents ouverts.
-
-function openParentFolders(folderId) {
-
-    let folder = folders.find(
-        f => f.id === folderId
-    );
-
-
-    while (
-        folder &&
-        folder.parent !== null
-    ) {
-
-        openFolders.add(folder.parent);
-
-
-        folder = folders.find(
-            f => f.id === folder.parent
-        );
-
-    }
+    font-size: 24px;
 
 }
 
-Résultat
+4. Fonction « nouvel onglet »
 
-Avant :
+Ajoutez :
 
-📁 Administratif
-   ▼
-   📂 Rapports
-      ├── fichier.pdf
-      └── fichier.pdf
+function openInNewTab() {
 
-   📂 Décisions
+    if (!currentDocument) {
+        return;
+    }
 
-Vous cliquez sur Rapports → l'arborescence se fermait ❌.
+    window.open(
+        currentDocument.url,
+        "_blank"
+    );
 
-Maintenant :
+}
 
-📁 Administratif
-   ▼
-   📂 Rapports        ← sélectionné
-      ├── fichier.pdf
-      └── fichier.pdf
+Cela ouvre le vrai PDF dans un nouvel onglet du navigateur.
 
-   📂 Décisions
+5. Supprimez les anciennes fonctions
 
-Puis vous cliquez sur Décisions :
+Vous pouvez maintenant supprimer :
 
-📁 Administratif
-   ▼
-   📂 Rapports
-   📂 Décisions       ← sélectionné
+zoomIn()
+zoomOut()
+nextPage()
+previousPage()
+setPdfPage()
+downloadCurrent()
 
-Administratif reste ouvert.
+Le bouton téléchargement peut rester sur chaque carte :
 
-Et si vous avez plusieurs niveaux :
+┌─────────────────────────┐
+│                         │
+│       APERÇU PDF        │
+│                         │
+├─────────────────────────┤
+│ Rapport_2025.pdf        │
+│ 32 pages · 2.4 Mo       │
+│                         │
+│ [ 👁 Voir ] [ ↓ Télécharger ]
+└─────────────────────────┘
 
-📁 Administratif
-   ▼
-   📂 Rapports
-      ▼
-      📂 Rapports annuels
-         ▼
-         📂 2026
-
-et vous cliquez sur 2026, toute l'arborescence parent reste ouverte.
-
-Le comportement est donc :
-
-clic sur le dossier → sélectionne le dossier
-
-clic sur ▶ → ouvre/ferme le dossier
-
-les dossiers ouverts restent ouverts après sélection
-
-les parents du dossier sélectionné sont automatiquement ouverts
-
-les compteurs restent affichés.
+Ainsi, la visionneuse devient beaucoup plus propre : titre parfaitement centré + plein écran + nouvel onglet + fermeture.

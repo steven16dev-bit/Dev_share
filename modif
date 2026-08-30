@@ -1,273 +1,42 @@
-Oui. Pour simplifier la visionneuse, je vous conseille maintenant :
+function openViewer(id) {
 
-❌ supprimer Page
+    const selectedFile = documents.find(
+        file => file.id === id
+    );
 
-❌ supprimer Zoom
+    if (!selectedFile) return;
 
-❌ supprimer les boutons précédent/suivant
+    currentDocument = selectedFile;
 
-❌ supprimer le bouton téléchargement de la visionneuse
 
-⛶ garder Plein écran
+    // Détection mobile
+    const isMobile =
+        window.matchMedia("(max-width: 800px)").matches;
 
-↗️ ajouter Ouvrir dans un nouvel onglet
 
-📄 garder le titre centré horizontalement
+    // MOBILE
+    if (isMobile) {
 
-Le PDF reste affiché directement dans la zone de lecture.
+        window.open(
+            selectedFile.url,
+            "_blank"
+        );
 
-
-Nouvelle barre de la visionneuse
-
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│             Rapport_Activite_2025.pdf                    │
-│                                                          │
-│                                      ⛶    ↗              │
-└──────────────────────────────────────────────────────────┘
-
-1. Remplacez le HTML du viewer-header
-
-<div class="viewer-header">
-
-    <div class="viewer-title" id="viewerTitle">
-        Aucun document sélectionné
-    </div>
-
-    <div class="viewer-actions">
-
-        <button
-            class="viewer-btn"
-            onclick="fullscreenViewer()"
-            title="Plein écran"
-        >
-            ⛶
-        </button>
-
-        <button
-            class="viewer-btn"
-            onclick="openInNewTab()"
-            title="Ouvrir dans un nouvel onglet"
-        >
-            ↗
-        </button>
-
-        <button
-            class="viewer-close"
-            onclick="closeViewer()"
-            title="Fermer"
-        >
-            ×
-        </button>
-
-    </div>
-
-</div>
-
-2. Supprimez complètement viewer-toolbar
-
-Vous n'en avez plus besoin.
-
-Supprimez donc :
-
-<div class="viewer-toolbar">
-    ...
-</div>
-
-La structure devient simplement :
-
-<section class="viewer">
-
-    <div class="viewer-header">
-
-        <div
-            class="viewer-title"
-            id="viewerTitle"
-        >
-            Aucun document sélectionné
-        </div>
-
-        <div class="viewer-actions">
-
-            <button
-                class="viewer-btn"
-                onclick="fullscreenViewer()"
-            >
-                ⛶
-            </button>
-
-            <button
-                class="viewer-btn"
-                onclick="openInNewTab()"
-            >
-                ↗
-            </button>
-
-            <button
-                class="viewer-close"
-                onclick="closeViewer()"
-            >
-                ×
-            </button>
-
-        </div>
-
-    </div>
-
-
-    <div class="viewer-body">
-
-        <iframe
-            id="pdfViewer"
-            src=""
-        ></iframe>
-
-    </div>
-
-</section>
-
-3. Nouveau CSS
-
-Remplacez l'ancien CSS de .viewer-header et ajoutez :
-
-.viewer-header {
-    height: 58px;
-
-    background: #202b3a;
-
-    color: white;
-
-    display: grid;
-
-    grid-template-columns: 1fr auto 1fr;
-
-    align-items: center;
-
-    padding: 0 16px;
-
-    position: relative;
-}
-
-
-/* TITRE CENTRÉ HORIZONTALEMENT */
-
-.viewer-title {
-
-    grid-column: 2;
-
-    font-size: 14px;
-
-    font-weight: 600;
-
-    white-space: nowrap;
-
-    overflow: hidden;
-
-    text-overflow: ellipsis;
-
-    max-width: 500px;
-
-    text-align: center;
-}
-
-
-/* ACTIONS À DROITE */
-
-.viewer-actions {
-
-    grid-column: 3;
-
-    justify-self: end;
-
-    display: flex;
-
-    align-items: center;
-
-    gap: 5px;
-}
-
-
-.viewer-btn,
-.viewer-close {
-
-    width: 36px;
-    height: 36px;
-
-    border: none;
-
-    background: transparent;
-
-    color: white;
-
-    border-radius: 6px;
-
-    cursor: pointer;
-
-    font-size: 18px;
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
-}
-
-
-.viewer-btn:hover,
-.viewer-close:hover {
-
-    background: rgba(255,255,255,.12);
-
-}
-
-
-.viewer-close {
-
-    font-size: 24px;
-
-}
-
-4. Fonction « nouvel onglet »
-
-Ajoutez :
-
-function openInNewTab() {
-
-    if (!currentDocument) {
         return;
     }
 
-    window.open(
-        currentDocument.url,
-        "_blank"
-    );
+
+    // DESKTOP
+    document.getElementById(
+        "viewerTitle"
+    ).textContent =
+        selectedFile.name;
+
+
+    document.getElementById(
+        "pdfViewer"
+    ).src =
+        selectedFile.url +
+        "#toolbar=1&navpanes=1";
 
 }
-
-Cela ouvre le vrai PDF dans un nouvel onglet du navigateur.
-
-5. Supprimez les anciennes fonctions
-
-Vous pouvez maintenant supprimer :
-
-zoomIn()
-zoomOut()
-nextPage()
-previousPage()
-setPdfPage()
-downloadCurrent()
-
-Le bouton téléchargement peut rester sur chaque carte :
-
-┌─────────────────────────┐
-│                         │
-│       APERÇU PDF        │
-│                         │
-├─────────────────────────┤
-│ Rapport_2025.pdf        │
-│ 32 pages · 2.4 Mo       │
-│                         │
-│ [ 👁 Voir ] [ ↓ Télécharger ]
-└─────────────────────────┘
-
-Ainsi, la visionneuse devient beaucoup plus propre : titre parfaitement centré + plein écran + nouvel onglet + fermeture.

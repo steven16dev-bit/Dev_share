@@ -1,195 +1,339 @@
-Oui, je vois le problème. Le clic sur le dossier fonctionne, puisque le compteur change, mais l'affichage des cartes PDF plante ensuite.
+Oui. Le problème vient de buildFolderTree() : à chaque clic sur un dossier, l'arborescence est reconstruite, donc les éléments .children perdent leur état open.
 
-La cause principale est dans mon code précédent : j'ai utilisé document comme nom de variable alors que document est aussi l'objet JavaScript du navigateur. Cela provoque une erreur au moment de créer les cartes.
+Le mieux est de mémoriser les dossiers ouverts.
 
-1. Remplacez complètement renderDocuments() par ceci
+1. Ajoutez cette variable
 
-function renderDocuments() {
+Placez-la avec vos autres variables globales :
 
-    const container = document.getElementById("documentsContainer");
+let currentFolder = "all";
 
-    container.innerHTML = "";
+let currentPage = 1;
 
-    const filteredDocuments = applyFilters();
+const pageSize = 6;
 
-    document.getElementById("resultCount").textContent =
-        filteredDocuments.length + " document(s)";
+let currentDocument = null;
 
-    const totalPages = Math.ceil(
-        filteredDocuments.length / pageSize
-    );
+let zoom = 100;
 
-    if (currentPage > totalPages) {
-        currentPage = Math.max(totalPages, 1);
+// Mémorise les dossiers ouverts
+const openFolders = new Set();
+
+
+---
+
+2. Remplacez createFolderElement() par cette version
+
+function createFolderElement(folder) {
+
+    const li = document.createElement("li");
+
+    li.className = "tree-item";
+
+
+    const row = document.createElement("div");
+
+    row.className = "tree-row";
+
+
+    if (folder.id === currentFolder) {
+        row.classList.add("active");
     }
 
-    const start = (currentPage - 1) * pageSize;
 
-    const pageDocuments = filteredDocuments.slice(
-        start,
-        start + pageSize
+    const children = folders.filter(
+        f => f.parent === folder.id
     );
 
-    if (pageDocuments.length === 0) {
 
-        container.innerHTML = `
-            <div class="empty">
-                <div style="font-size:40px">📄</div>
-                <br>
-                Aucun document dans ce dossier.
-            </div>
-        `;
+    /* ==============================
+       FLÈCHE
+    ============================== */
 
-        renderPagination(0);
-        return;
+    const arrow = document.createElement("span");
+
+    arrow.className = "folder-arrow";
+
+    arrow.innerHTML = children.length ? "▶" : "";
+
+
+    /* ==============================
+       ICÔNE
+    ============================== */
+
+    const icon = document.createElement("span");
+
+    icon.className = "folder-icon";
+
+    icon.innerHTML = folder.icon;
+
+
+    /* ==============================
+       NOM
+    ============================== */
+
+    const name = document.createElement("span");
+
+    name.className = "folder-name";
+
+    name.textContent = folder.name;
+
+
+    /* ==============================
+       COMPTEUR
+    ============================== */
+
+    const count = document.createElement("span");
+
+    count.className = "file-count";
+
+    count.textContent = getFolderCount(folder.id);
+
+
+    row.append(
+        arrow,
+        icon,
+        name,
+        count
+    );
+
+
+    /*
+       Clic sur le nom du dossier
+       = sélectionner le dossier
+    */
+
+    row.onclick = function(e) {
+
+        e.stopPropagation();
+
+        selectFolder(folder.id);
+
+    };
+
+
+    li.appendChild(row);
+
+
+    /* ==============================
+       SOUS-DOSSIERS
+    ============================== */
+
+    if (children.length) {
+
+        const childrenContainer =
+            document.createElement("div");
+
+        childrenContainer.className = "children";
+
+
+        /*
+           Restaurer l'état du dossier
+        */
+
+        if (openFolders.has(folder.id)) {
+
+            childrenContainer.classList.add("open");
+
+            arrow.classList.add("open");
+
+        }
+
+
+        children.forEach(child => {
+
+            childrenContainer.appendChild(
+                createFolderElement(child)
+            );
+
+        });
+
+
+        li.appendChild(childrenContainer);
+
+
+        /*
+           Clic uniquement sur la flèche
+           = ouvrir / fermer
+        */
+
+        arrow.onclick = function(e) {
+
+            e.stopPropagation();
+
+            if (
+                openFolders.has(folder.id)
+            ) {
+
+                openFolders.delete(folder.id);
+
+                childrenContainer.classList.remove(
+                    "open"
+                );
+
+                arrow.classList.remove(
+                    "open"
+                );
+
+            } else {
+
+                openFolders.add(folder.id);
+
+                childrenContainer.classList.add(
+                    "open"
+                );
+
+                arrow.classList.add(
+                    "open"
+                );
+
+            }
+
+        };
+
     }
 
-    pageDocuments.forEach(file => {
 
-        const card = document.createElement("div");
-
-        card.className = "document-card";
-
-        card.innerHTML = `
-            <div
-                class="pdf-cover"
-                onclick="openViewer(${file.id})"
-            >
-
-                <span class="pdf-label">
-                    PDF
-                </span>
-
-                <iframe
-                    src="${file.url}#page=1&toolbar=0&navpanes=0"
-                    title="${file.name}"
-                ></iframe>
-
-            </div>
-
-            <div class="card-body">
-
-                <div
-                    class="file-name"
-                    title="${file.name}"
-                >
-                    ${file.name}
-                </div>
-
-                <div class="file-meta">
-                    <span>${file.pages} pages</span>
-                    <span>•</span>
-                    <span>${file.size}</span>
-                </div>
-
-                <div class="card-actions">
-
-                    <button
-                        class="btn primary"
-                        onclick="openViewer(${file.id})"
-                    >
-                        👁 Voir
-                    </button>
-
-                    <button
-                        class="btn"
-                        onclick="downloadDocument(${file.id})"
-                    >
-                        ↓ Télécharger
-                    </button>
-
-                </div>
-
-            </div>
-        `;
-
-        container.appendChild(card);
-
-    });
-
-    renderPagination(totalPages);
+    return li;
 }
 
-2. Remplacez également openViewer()
 
-function openViewer(id) {
+---
 
-    const selectedFile = documents.find(
-        file => file.id === id
+3. Modifiez également selectFolder()
+
+Utilisez :
+
+function selectFolder(folderId) {
+
+    currentFolder = folderId;
+
+    currentPage = 1;
+
+
+    /*
+       Ouvre automatiquement les parents
+       du dossier sélectionné
+    */
+
+    openParentFolders(folderId);
+
+
+    const folder = folders.find(
+        f => f.id === folderId
     );
 
-    if (!selectedFile) return;
 
-    currentDocument = selectedFile;
+    if (folder) {
 
-    document.getElementById("viewerTitle").textContent =
-        "📄 " + selectedFile.name;
+        document.getElementById(
+            "currentFolderTitle"
+        ).textContent = folder.name;
 
-    document.getElementById("pdfViewer").src =
-        selectedFile.url +
-        "#page=1&toolbar=1&navpanes=1";
 
-    document.getElementById("pageNumber").value = 1;
+        document.getElementById(
+            "currentFolderDescription"
+        ).textContent =
+            getFolderCount(folderId)
+            + " document(s) disponible(s)";
 
-    zoom = 100;
+    }
 
-    document.getElementById("zoomValue").textContent =
-        "100%";
+
+    /*
+       Reconstruit l'arbre mais restaure
+       automatiquement les dossiers ouverts
+    */
+
+    buildFolderTree();
+
+    renderDocuments();
+
 }
 
-3. Le comportement sera maintenant
 
-Par exemple :
+---
 
-📁 Dossiers administratifs                    (5)
-    │
-    ├── 📂 Rapports                           (2)
-    │
-    └── 📂 Décisions                          (3)
+4. Ajoutez cette fonction
 
-📁 Ressources humaines                        (4)
-    │
-    ├── 📂 Formation                           (2)
-    │
-    └── 📂 Congés                              (2)
+Elle permet de garder automatiquement les parents ouverts.
 
-Si vous cliquez sur :
+function openParentFolders(folderId) {
 
-📂 Rapports (2)
-
-la partie centrale devient :
-
-Rapports
-
-2 documents
+    let folder = folders.find(
+        f => f.id === folderId
+    );
 
 
-┌────────────────────┐  ┌────────────────────┐
-│                    │  │                    │
-│   APERÇU PDF       │  │   APERÇU PDF       │
-│                    │  │                    │
-│   Rapport 2025     │  │   Rapport 2024     │
-│                    │  │                    │
-├────────────────────┤  ├────────────────────┤
-│ Rapport_2025.pdf   │  │ Rapport_2024.pdf   │
-│ 32 pages · 2.4 Mo  │  │ 28 pages · 2.1 Mo  │
-│                    │  │                    │
-│ 👁 Voir  ↓ Télécharger│ 👁 Voir ↓ Télécharger│
-└────────────────────┘  └────────────────────┘
+    while (
+        folder &&
+        folder.parent !== null
+    ) {
 
-Et si vous cliquez sur Dossiers administratifs (5), il affichera les 5 PDF, y compris ceux des sous-dossiers.
+        openFolders.add(folder.parent);
 
-Point important
 
-Il faut aussi vérifier que les fichiers existent réellement :
+        folder = folders.find(
+            f => f.id === folder.parent
+        );
 
-index.html
-pdfs/
-   rapport-activite-2025.pdf
-   rapport-activite-2024.pdf
-   decision-direction-2026.pdf
-   ...
+    }
 
-Si les PDF n'existent pas physiquement à ces emplacements, les cartes apparaîtront mais l'aperçu PDF restera vide.
+}
 
-Pour votre version finale, je vous recommande de remplacer les iframe par PDF.js. On pourra alors avoir de vraies miniatures générées à partir des PDF, et une vraie visionneuse avec miniatures de toutes les pages, zoom, recherche, plein écran et navigation.
+Résultat
+
+Avant :
+
+📁 Administratif
+   ▼
+   📂 Rapports
+      ├── fichier.pdf
+      └── fichier.pdf
+
+   📂 Décisions
+
+Vous cliquez sur Rapports → l'arborescence se fermait ❌.
+
+Maintenant :
+
+📁 Administratif
+   ▼
+   📂 Rapports        ← sélectionné
+      ├── fichier.pdf
+      └── fichier.pdf
+
+   📂 Décisions
+
+Puis vous cliquez sur Décisions :
+
+📁 Administratif
+   ▼
+   📂 Rapports
+   📂 Décisions       ← sélectionné
+
+Administratif reste ouvert.
+
+Et si vous avez plusieurs niveaux :
+
+📁 Administratif
+   ▼
+   📂 Rapports
+      ▼
+      📂 Rapports annuels
+         ▼
+         📂 2026
+
+et vous cliquez sur 2026, toute l'arborescence parent reste ouverte.
+
+Le comportement est donc :
+
+clic sur le dossier → sélectionne le dossier
+
+clic sur ▶ → ouvre/ferme le dossier
+
+les dossiers ouverts restent ouverts après sélection
+
+les parents du dossier sélectionné sont automatiquement ouverts
+
+les compteurs restent affichés.

@@ -1,114 +1,271 @@
-Oui, très bonne idée. Sur mobile, après avoir cliqué sur un dossier, on peut faire défiler automatiquement la page jusqu'au premier PDF. Cela évite que l'utilisateur reste positionné sur le sidenav alors que les documents sont plus bas.
+Oui. C'est une meilleure UX : le viewer doit être complètement masqué au chargement. Il apparaît uniquement lorsqu'un document est sélectionné, puis × le ferme avec une animation.
 
-Je recommande ce comportement :
+1. Remplacez le CSS du .viewer
 
-📱 MOBILE
+.viewer {
+    background: #17202d;
 
-Clic sur :
-📂 Rapports (12)
+    display: flex;
+    flex-direction: column;
 
-        ↓
+    min-width: 0;
 
-La page descend automatiquement
+    /* Caché par défaut */
+    opacity: 0;
+    visibility: hidden;
 
-        ↓
+    transform: translateX(40px);
 
-┌─────────────────────────┐
-│ Rapports                │
-│ 12 documents            │
-├─────────────────────────┤
-│                         │
-│   ┌─────────────────┐   │
-│   │                 │   │
-│   │   APERÇU PDF    │ ← │ Premier PDF
-│   │                 │   │
-│   └─────────────────┘   │
-│                         │
-│ Rapport_2026.pdf        │
-│ [ 👁 Voir ]             │
-└─────────────────────────┘
+    transition:
+        opacity .3s ease,
+        transform .3s ease,
+        visibility .3s ease;
 
-Modification de selectFolder()
+    pointer-events: none;
+}
 
-Ajoutez le scroll uniquement sur mobile :
 
-function selectFolder(folderId) {
+/* Viewer ouvert */
 
-    currentFolder = folderId;
+.viewer.open {
+    opacity: 1;
+    visibility: visible;
 
-    currentPage = 1;
+    transform: translateX(0);
 
-    // Ouvre les dossiers parents
-    openParentFolders(folderId);
+    pointer-events: auto;
+}
 
-    const folder = folders.find(
-        f => f.id === folderId
+
+---
+
+2. Gardez le HTML du viewer
+
+<section class="viewer" id="pdfViewerPanel">
+
+    <div class="viewer-header">
+
+        <div
+            class="viewer-title"
+            id="viewerTitle"
+        >
+            Aucun document sélectionné
+        </div>
+
+        <div class="viewer-actions">
+
+            <button
+                class="viewer-btn"
+                onclick="fullscreenViewer()"
+                title="Plein écran"
+            >
+                ⛶
+            </button>
+
+            <button
+                class="viewer-btn"
+                onclick="openInNewTab()"
+                title="Ouvrir dans un nouvel onglet"
+            >
+                ↗
+            </button>
+
+            <button
+                class="viewer-close"
+                onclick="closeViewer()"
+                title="Fermer"
+            >
+                ×
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="viewer-body">
+
+        <iframe
+            id="pdfViewer"
+            src=""
+        ></iframe>
+
+    </div>
+
+</section>
+
+
+---
+
+3. Modifiez openViewer()
+
+function openViewer(id) {
+
+    const selectedFile = documents.find(
+        file => file.id === id
     );
 
-    if (folder) {
+    if (!selectedFile) return;
+
+
+    currentDocument = selectedFile;
+
+
+    // Mobile
+    const isMobile =
+        window.matchMedia("(max-width: 800px)").matches;
+
+
+    if (isMobile) {
+
+        window.open(
+            selectedFile.url,
+            "_blank"
+        );
+
+        return;
+    }
+
+
+    const viewer =
+        document.getElementById(
+            "pdfViewerPanel"
+        );
+
+
+    const pdf =
+        document.getElementById(
+            "pdfViewer"
+        );
+
+
+    const title =
+        document.getElementById(
+            "viewerTitle"
+        );
+
+
+    title.textContent =
+        selectedFile.name;
+
+
+    pdf.src =
+        selectedFile.url +
+        "#toolbar=1&navpanes=1";
+
+
+    /*
+       Animation d'ouverture
+    */
+
+    viewer.classList.add("open");
+
+}
+
+
+---
+
+4. Modifiez closeViewer()
+
+function closeViewer() {
+
+    const viewer =
+        document.getElementById(
+            "pdfViewerPanel"
+        );
+
+    const pdf =
+        document.getElementById(
+            "pdfViewer"
+        );
+
+
+    /*
+       Lance l'animation de fermeture
+    */
+
+    viewer.classList.remove("open");
+
+
+    /*
+       On vide le PDF après l'animation
+       pour libérer la mémoire
+    */
+
+    setTimeout(() => {
+
+        pdf.src = "";
+
+        currentDocument = null;
 
         document.getElementById(
-            "currentFolderTitle"
-        ).textContent = folder.name;
-
-        document.getElementById(
-            "currentFolderDescription"
+            "viewerTitle"
         ).textContent =
-            getFolderCount(folderId)
-            + " document(s) disponible(s)";
-    }
+            "Aucun document sélectionné";
 
-    buildFolderTree();
-
-    renderDocuments();
-
-
-    // ==============================
-    // MOBILE : SCROLL VERS DOCUMENTS
-    // ==============================
-
-    if (
-        window.matchMedia("(max-width: 800px)").matches
-    ) {
-
-        setTimeout(() => {
-
-            const firstPdf =
-                document.querySelector(
-                    ".document-card"
-                );
-
-            if (firstPdf) {
-
-                firstPdf.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start"
-                });
-
-            }
-
-        }, 150);
-
-    }
+    }, 300);
 
 }
 
-Petit ajustement recommandé
+Le comportement devient
 
-Pour que le premier PDF ne soit pas collé en haut de l'écran à cause du header fixe :
+Au chargement :
 
-@media(max-width: 800px) {
+┌───────────────┬───────────────────────────────┐
+│ 📁 Dossiers   │                               │
+│               │       Documents               │
+│ 📂 Rapports   │                               │
+│ 📂 Décisions  │       [ PDF ]                 │
+│               │                               │
+└───────────────┴───────────────────────────────┘
 
-    .document-card:first-child {
-        scroll-margin-top: 90px;
-    }
+Le viewer est totalement invisible.
 
-}
 
-Résultat final sur mobile
+---
 
-Le parcours devient très naturel :
+Clic sur un PDF :
 
-Dossier → affichage des PDF → scroll automatique vers le premier PDF → clic → ouverture du PDF dans un nouvel onglet.
+→ animation →
 
-Et sur desktop, aucun scroll automatique : la visionneuse reste à droite comme prévu.
+┌───────────────┬───────────────────────────────┐
+│ 📁 Dossiers   │     Rapport_2025.pdf     ⛶ ↗ ×│
+│               │───────────────────────────────│
+│ 📂 Rapports   │                               │
+│               │          PDF                  │
+│               │                               │
+└───────────────┴───────────────────────────────┘
+
+Le viewer arrive de la droite avec un léger fondu.
+
+
+---
+
+Clic sur × :
+
+← animation ←
+
+┌───────────────┬───────────────────────────────┐
+│ 📁 Dossiers   │                               │
+│               │       Documents               │
+│ 📂 Rapports   │                               │
+│ 📂 Décisions  │       [ PDF ]                 │
+└───────────────┴───────────────────────────────┘
+
+Le viewer repart vers la droite puis est masqué.
+
+Sur mobile
+
+On conserve votre règle précédente :
+
+clic sur PDF → ouverture directe dans un nouvel onglet, sans afficher le viewer intégré.
+
+Ainsi, vous avez trois comportements cohérents :
+
+Action	Desktop	Mobile
+
+Chargement	Viewer caché	Viewer caché
+Sélection PDF	Viewer animé	Nouvel onglet
+×	Fermeture animée	—
+⛶	Plein écran	—
+↗	Nouvel onglet	Déjà ouvert dans nouvel onglet

@@ -1,42 +1,114 @@
-function openViewer(id) {
+Oui, très bonne idée. Sur mobile, après avoir cliqué sur un dossier, on peut faire défiler automatiquement la page jusqu'au premier PDF. Cela évite que l'utilisateur reste positionné sur le sidenav alors que les documents sont plus bas.
 
-    const selectedFile = documents.find(
-        file => file.id === id
+Je recommande ce comportement :
+
+📱 MOBILE
+
+Clic sur :
+📂 Rapports (12)
+
+        ↓
+
+La page descend automatiquement
+
+        ↓
+
+┌─────────────────────────┐
+│ Rapports                │
+│ 12 documents            │
+├─────────────────────────┤
+│                         │
+│   ┌─────────────────┐   │
+│   │                 │   │
+│   │   APERÇU PDF    │ ← │ Premier PDF
+│   │                 │   │
+│   └─────────────────┘   │
+│                         │
+│ Rapport_2026.pdf        │
+│ [ 👁 Voir ]             │
+└─────────────────────────┘
+
+Modification de selectFolder()
+
+Ajoutez le scroll uniquement sur mobile :
+
+function selectFolder(folderId) {
+
+    currentFolder = folderId;
+
+    currentPage = 1;
+
+    // Ouvre les dossiers parents
+    openParentFolders(folderId);
+
+    const folder = folders.find(
+        f => f.id === folderId
     );
 
-    if (!selectedFile) return;
+    if (folder) {
 
-    currentDocument = selectedFile;
+        document.getElementById(
+            "currentFolderTitle"
+        ).textContent = folder.name;
 
-
-    // Détection mobile
-    const isMobile =
-        window.matchMedia("(max-width: 800px)").matches;
-
-
-    // MOBILE
-    if (isMobile) {
-
-        window.open(
-            selectedFile.url,
-            "_blank"
-        );
-
-        return;
+        document.getElementById(
+            "currentFolderDescription"
+        ).textContent =
+            getFolderCount(folderId)
+            + " document(s) disponible(s)";
     }
 
+    buildFolderTree();
 
-    // DESKTOP
-    document.getElementById(
-        "viewerTitle"
-    ).textContent =
-        selectedFile.name;
+    renderDocuments();
 
 
-    document.getElementById(
-        "pdfViewer"
-    ).src =
-        selectedFile.url +
-        "#toolbar=1&navpanes=1";
+    // ==============================
+    // MOBILE : SCROLL VERS DOCUMENTS
+    // ==============================
+
+    if (
+        window.matchMedia("(max-width: 800px)").matches
+    ) {
+
+        setTimeout(() => {
+
+            const firstPdf =
+                document.querySelector(
+                    ".document-card"
+                );
+
+            if (firstPdf) {
+
+                firstPdf.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+
+            }
+
+        }, 150);
+
+    }
 
 }
+
+Petit ajustement recommandé
+
+Pour que le premier PDF ne soit pas collé en haut de l'écran à cause du header fixe :
+
+@media(max-width: 800px) {
+
+    .document-card:first-child {
+        scroll-margin-top: 90px;
+    }
+
+}
+
+Résultat final sur mobile
+
+Le parcours devient très naturel :
+
+Dossier → affichage des PDF → scroll automatique vers le premier PDF → clic → ouverture du PDF dans un nouvel onglet.
+
+Et sur desktop, aucun scroll automatique : la visionneuse reste à droite comme prévu.

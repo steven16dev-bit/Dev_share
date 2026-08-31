@@ -219,3 +219,385 @@ Actualité
     └── Paragraphe 4
 
 Cette structure est également très facile à faire évoluer plus tard vers une actualité venant d'une base Oracle/API, sans devoir modifier la page HTML.
+
+
+----
+Oui. Voici le article.js complet correspondant à notre structure actuelle : liste des articles, récupération de id depuis l'URL, affichage du titre + description + date + image + détails en paragraphes, et gestion d'un article inexistant.
+
+/* =========================================================
+   ARTICLE.JS
+   Page détail d'une actualité
+========================================================= */
+
+
+/* =========================================================
+   1. LISTE DES ARTICLES
+========================================================= */
+
+const articles = [
+
+    {
+        id: 1,
+
+        title:
+            "Nouveau projet stratégique de l'entreprise",
+
+        description:
+            "L'entreprise annonce le lancement d'un nouveau projet stratégique visant à améliorer ses performances et la qualité de ses services.",
+
+        date:
+            "31 août 2026",
+
+        image:
+            "images/news-01.jpg",
+
+        paragraphs: [
+
+            "L'entreprise annonce le lancement d'un nouveau projet stratégique. Cette initiative s'inscrit dans le cadre de sa démarche d'amélioration continue.",
+
+            "Le projet permettra notamment d'améliorer l'organisation des activités et de renforcer la qualité des services proposés.",
+
+            "Plusieurs directions participeront à la mise en œuvre de ce projet au cours des prochains mois.",
+
+            "Des actions spécifiques seront également mises en place afin d'assurer un suivi régulier des résultats."
+
+        ]
+    },
+
+
+    {
+        id: 2,
+
+        title:
+            "Nouvelle procédure interne",
+
+        description:
+            "Une nouvelle procédure interne entre en vigueur afin d'améliorer l'organisation et le traitement des opérations.",
+
+        date:
+            "28 août 2026",
+
+        image:
+            "images/news-02.jpg",
+
+        paragraphs: [
+
+            "Une nouvelle procédure interne entre en vigueur à partir du 28 août 2026.",
+
+            "Cette procédure concerne l'ensemble des directions et services concernés par le processus.",
+
+            "Les responsables des différentes structures sont invités à prendre connaissance des nouvelles dispositions.",
+
+            "Cette nouvelle organisation permettra d'améliorer le suivi et la traçabilité des opérations."
+
+        ]
+    },
+
+
+    {
+        id: 3,
+
+        title:
+            "Réunion de coordination des directions",
+
+        description:
+            "Une réunion de coordination a été organisée afin de présenter les principaux résultats et les prochaines actions.",
+
+        date:
+            "25 août 2026",
+
+        image:
+            "images/news-03.jpg",
+
+        paragraphs: [
+
+            "Une réunion de coordination a été organisée entre les différentes directions de l'entreprise.",
+
+            "Cette rencontre a permis de présenter les principaux résultats obtenus au cours de la période précédente.",
+
+            "Les participants ont également présenté les difficultés rencontrées et les actions correctives proposées.",
+
+            "Un calendrier de suivi sera mis en place afin d'assurer la réalisation des différentes actions."
+
+        ]
+    }
+
+];
+
+
+
+/* =========================================================
+   2. RÉCUPÉRER L'ID DEPUIS L'URL
+========================================================= */
+
+const params =
+    new URLSearchParams(
+        window.location.search
+    );
+
+
+const articleId =
+    Number(
+        params.get("id")
+    );
+
+
+
+/* =========================================================
+   3. RECHERCHER L'ARTICLE
+========================================================= */
+
+const article =
+    articles.find(
+        item => item.id === articleId
+    );
+
+
+
+/* =========================================================
+   4. RÉFÉRENCES HTML
+========================================================= */
+
+const articleTitle =
+    document.getElementById(
+        "articleTitle"
+    );
+
+
+const articleDescription =
+    document.getElementById(
+        "articleDescription"
+    );
+
+
+const articleDate =
+    document.getElementById(
+        "articleDate"
+    );
+
+
+const articleImage =
+    document.getElementById(
+        "articleImage"
+    );
+
+
+const articleDetail =
+    document.getElementById(
+        "articleDetail"
+    );
+
+
+
+/* =========================================================
+   5. AFFICHER L'ARTICLE
+========================================================= */
+
+if (article) {
+
+
+    /* -----------------------------------------
+       TITRE
+    ----------------------------------------- */
+
+    if (articleTitle) {
+
+        articleTitle.textContent =
+            article.title;
+
+    }
+
+
+
+    /* -----------------------------------------
+       DESCRIPTION
+    ----------------------------------------- */
+
+    if (articleDescription) {
+
+        articleDescription.textContent =
+            article.description;
+
+    }
+
+
+
+    /* -----------------------------------------
+       DATE
+    ----------------------------------------- */
+
+    if (articleDate) {
+
+        articleDate.textContent =
+            article.date;
+
+    }
+
+
+
+    /* -----------------------------------------
+       IMAGE
+    ----------------------------------------- */
+
+    if (articleImage) {
+
+        articleImage.src =
+            article.image;
+
+        articleImage.alt =
+            article.title;
+
+    }
+
+
+
+    /* -----------------------------------------
+       DÉTAIL / PARAGRAPHES
+    ----------------------------------------- */
+
+    if (articleDetail) {
+
+        articleDetail.innerHTML = "";
+
+
+        article.paragraphs.forEach(
+            paragraph => {
+
+                const p =
+                    document.createElement(
+                        "p"
+                    );
+
+
+                p.textContent =
+                    paragraph;
+
+
+                articleDetail.appendChild(
+                    p
+                );
+
+            }
+        );
+
+    }
+
+
+
+    /* -----------------------------------------
+       TITRE DU NAVIGATEUR
+    ----------------------------------------- */
+
+    document.title =
+        article.title;
+
+
+}
+
+
+
+/* =========================================================
+   6. ARTICLE NON TROUVÉ
+========================================================= */
+
+else {
+
+    document.title =
+        "Actualité introuvable";
+
+
+    if (articleTitle) {
+
+        articleTitle.textContent =
+            "Actualité introuvable";
+
+    }
+
+
+    if (articleDescription) {
+
+        articleDescription.textContent =
+            "L'actualité demandée n'existe pas ou n'est plus disponible.";
+
+    }
+
+
+    if (articleDate) {
+
+        articleDate.textContent =
+            "";
+
+    }
+
+
+    if (articleImage) {
+
+        articleImage.style.display =
+            "none";
+
+    }
+
+
+    if (articleDetail) {
+
+        articleDetail.innerHTML = `
+            <p>
+                Cette actualité n'est pas disponible.
+            </p>
+        `;
+
+    }
+
+}
+
+Votre article.html doit avoir ces IDs
+
+<h1 id="articleTitle"></h1>
+
+<div id="articleDescription"></div>
+
+<div id="articleDate"></div>
+
+<img
+    id="articleImage"
+    src=""
+    alt=""
+>
+
+<div id="articleDetail"></div>
+
+<script src="js/article.js"></script>
+
+Et depuis la page d'accueil
+
+Chaque actualité doit envoyer son propre ID :
+
+<a href="article.html?id=1">
+    Lire la suite →
+</a>
+
+ou :
+
+<a href="article.html?id=2">
+    Lire la suite →
+</a>
+
+Ainsi, un seul article.html suffit pour toutes les actualités.
+
+Par exemple :
+
+article.html?id=1
+        ↓
+articles[0]
+        ↓
+Titre + Description + Date + Image + Paragraphes
+
+et :
+
+article.html?id=2
+        ↓
+articles[1]
+        ↓
+Titre + Description + Date + Image + Paragraphes
+
+Cette structure sera également facile à remplacer plus tard par des données provenant de votre API/.NET ou Oracle, sans changer la structure de la page.

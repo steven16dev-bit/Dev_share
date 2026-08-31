@@ -1,58 +1,8 @@
-Oui, je comprends maintenant. Vous voulez une animation synchronisée :
+Oui. Le problème vient du fait que nous animons deux propriétés différentes : le viewer avec transform, et le layout avec grid-template-columns. Visuellement, leurs vitesses ne sont donc pas identiques.
 
-Le viewer se ferme progressivement vers la droite.
+Pour obtenir une fermeture vraiment synchronisée, je vous conseille de ne plus utiliser transform pour le viewer. On anime uniquement la largeur du panneau. Ainsi, le viewer et les documents se déplacent exactement ensemble.
 
-En même temps, la zone des documents récupère progressivement sa largeur.
-
-Les cartes PDF se réorganisent pendant ce même mouvement.
-
-La pagination reste fixée en bas de la zone documents.
-
-Si plusieurs pages existent, elle reste toujours visible, même pendant l'ouverture/fermeture du viewer.
-
-
-Le point important est de ne pas attendre setTimeout() pour modifier le layout. C'est justement cela qui donne l'impression que les deux mouvements ne sont pas synchronisés.
-
-1. Structure
-
-Votre layout doit être :
-
-<div class="layout" id="mainLayout">
-
-    <aside class="sidenav">
-        ...
-    </aside>
-
-    <main class="content">
-        ...
-        
-        <div
-            class="documents"
-            id="documentsContainer"
-        ></div>
-
-        <div
-            class="pagination"
-            id="pagination"
-        ></div>
-
-    </main>
-
-    <section
-        class="viewer"
-        id="pdfViewerPanel"
-    >
-        ...
-    </section>
-
-</div>
-
-
----
-
-2. CSS du layout
-
-Remplacez les anciennes règles par celles-ci :
+1. Remplacez le CSS du layout
 
 .layout {
     display: grid;
@@ -60,7 +10,7 @@ Remplacez les anciennes règles par celles-ci :
     grid-template-columns:
         250px
         minmax(0, 1fr)
-        0px;
+        0fr;
 
     height: calc(100vh - 76px);
 
@@ -68,225 +18,92 @@ Remplacez les anciennes règles par celles-ci :
 
     transition:
         grid-template-columns
-        400ms
-        cubic-bezier(.4, 0, .2, 1);
+        450ms
+        cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 
-/* ================================
-   VIEWER OUVERT
-================================ */
+/* Viewer ouvert */
 
 .layout.viewer-open {
-
     grid-template-columns:
         250px
         minmax(0, 1fr)
         minmax(400px, 48%);
-
 }
 
+Ici, la largeur du viewer et celle de la zone documents changent dans la même animation.
 
-/* ================================
-   ZONE DOCUMENTS
-================================ */
 
-.content {
+---
 
+2. Remplacez complètement le CSS .viewer
+
+.viewer {
     min-width: 0;
-
-    display: flex;
-
-    flex-direction: column;
+    min-height: 0;
 
     overflow: hidden;
 
-    padding: 24px;
-
-}
-
-
-/* ================================
-   CONTENEUR PDF
-================================ */
-
-.documents {
-
-    flex: 1;
-
-    min-height: 0;
-
-    overflow-y: auto;
-
-    overflow-x: hidden;
-
-    display: grid;
-
-    grid-template-columns:
-        repeat(
-            3,
-            minmax(0, 1fr)
-        );
-
-    align-content: start;
-
-    gap: 16px;
-
-}
-
-
-/* Quand le viewer est ouvert */
-
-.layout.viewer-open .documents {
-
-    grid-template-columns:
-        repeat(
-            2,
-            minmax(0, 1fr)
-        );
-
-}
-
-
-/* ================================
-   PAGINATION
-================================ */
-
-.pagination {
-
-    flex-shrink: 0;
-
-    min-height: 52px;
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
-
-    gap: 6px;
-
-    padding-top: 12px;
-
-}
-
-Pourquoi cette version est plus fluide ?
-
-Parce que :
-
-.layout
-
-change sa largeur en même temps que :
-
-.documents
-
-change son nombre de colonnes.
-
-Il n'y a plus :
-
-fermer viewer
-      ↓
-attendre 350 ms
-      ↓
-modifier documents
-
-Mais :
-
-┌─────────────── ANIMATION 400ms ────────────────┐
-
-Viewer        ← fermeture
-Documents     → récupération de largeur
-Cartes        → réorganisation
-
-└─────────────────────────────────────────────────┘
-
-
----
-
-3. Pagination toujours en bas
-
-La pagination ne doit surtout pas être dans .documents.
-
-Elle doit être après le conteneur :
-
-<div
-    class="documents"
-    id="documentsContainer"
-></div>
-
-<div
-    class="pagination"
-    id="pagination"
-></div>
-
-Grâce à :
-
-.content {
     display: flex;
     flex-direction: column;
+
+    background: #17202d;
+
+    opacity: 0;
+
+    visibility: hidden;
+
+    /*
+       IMPORTANT :
+       pas de translateX()
+    */
+
+    pointer-events: none;
+
+    transition:
+        opacity 250ms ease,
+        visibility 0s linear 450ms;
 }
 
-.documents {
-    flex: 1;
+
+.viewer.open {
+
+    opacity: 1;
+
+    visibility: visible;
+
+    pointer-events: auto;
+
+    transition:
+        opacity 250ms ease,
+        visibility 0s linear 0s;
 }
 
-.pagination {
-    flex-shrink: 0;
-}
+On supprime complètement :
 
-elle reste toujours en bas.
+transform: translateX(...);
 
-Avec 20 documents :
-
-┌─────────────────────────────┐
-│ PDF │ PDF │ PDF             │
-│ PDF │ PDF │ PDF             │
-│ PDF │ PDF │ PDF             │
-│ PDF │ PDF │ PDF             │
-│                             │
-│                             │
-├─────────────────────────────┤
-│        ‹ 1 2 3 4 ›          │
-└─────────────────────────────┘
-
-Avec 2 documents :
-
-┌─────────────────────────────┐
-│                             │
-│ PDF │ PDF                   │
-│                             │
-│                             │
-│                             │
-│                             │
-├─────────────────────────────┤
-│          ‹ 1 ›              │
-└─────────────────────────────┘
+C'est justement ce qui créait le décalage visuel.
 
 
 ---
 
-4. openViewer()
-
-Utilisez cette version :
+3. openViewer()
 
 function openViewer(id) {
 
-    const selectedFile =
-        documents.find(
-            file => file.id === id
-        );
+    const selectedFile = documents.find(
+        file => file.id === id
+    );
 
-    if (!selectedFile) {
-        return;
-    }
+    if (!selectedFile) return;
 
 
     /* Mobile */
 
     if (
-        window.matchMedia(
-            "(max-width: 800px)"
-        ).matches
+        window.matchMedia("(max-width: 800px)").matches
     ) {
 
         window.open(
@@ -298,29 +115,20 @@ function openViewer(id) {
     }
 
 
-    currentDocument =
-        selectedFile;
+    currentDocument = selectedFile;
 
 
     const layout =
-        document.getElementById(
-            "mainLayout"
-        );
+        document.getElementById("mainLayout");
 
     const viewer =
-        document.getElementById(
-            "pdfViewerPanel"
-        );
+        document.getElementById("pdfViewerPanel");
 
     const pdf =
-        document.getElementById(
-            "pdfViewer"
-        );
+        document.getElementById("pdfViewer");
 
     const title =
-        document.getElementById(
-            "viewerTitle"
-        );
+        document.getElementById("viewerTitle");
 
 
     title.textContent =
@@ -333,73 +141,56 @@ function openViewer(id) {
 
 
     /*
-       IMPORTANT :
-
-       Les deux classes sont ajoutées
-       immédiatement.
-
-       Donc le déplacement du contenu
-       et l'ouverture du viewer commencent
-       exactement au même moment.
+       Les deux changements sont déclenchés
+       exactement dans la même frame.
     */
 
-    layout.classList.add(
-        "viewer-open"
-    );
+    requestAnimationFrame(() => {
 
-    viewer.classList.add(
-        "open"
-    );
+        layout.classList.add("viewer-open");
+
+        viewer.classList.add("open");
+
+    });
 
 }
 
 
 ---
 
-5. closeViewer()
+4. Nouveau closeViewer()
 
-C'est ici que nous corrigeons votre problème.
-
-Ne mettez plus de setTimeout() pour fermer le layout.
+C'est la partie la plus importante :
 
 function closeViewer() {
 
     const layout =
-        document.getElementById(
-            "mainLayout"
-        );
+        document.getElementById("mainLayout");
 
     const viewer =
-        document.getElementById(
-            "pdfViewerPanel"
-        );
+        document.getElementById("pdfViewerPanel");
 
     const pdf =
-        document.getElementById(
-            "pdfViewer"
-        );
+        document.getElementById("pdfViewer");
 
 
     /*
-       IMPORTANT :
-
-       Les deux commencent leur animation
-       exactement au même moment.
+       Les deux commencent à se fermer
+       simultanément.
     */
-
-    viewer.classList.remove(
-        "open"
-    );
 
     layout.classList.remove(
         "viewer-open"
     );
 
+    viewer.classList.remove(
+        "open"
+    );
+
 
     /*
-       On attend uniquement la fin
-       visuelle de l'animation pour
-       libérer le PDF.
+       On attend la fin de l'animation
+       uniquement pour vider le PDF.
     */
 
     setTimeout(() => {
@@ -408,138 +199,97 @@ function closeViewer() {
 
         currentDocument = null;
 
-    }, 400);
+    }, 450);
 
 }
+
+Pourquoi c'est beaucoup plus fluide
+
+Avant :
+
+VIEWER
+transform ───────────────→
+
+DOCUMENTS
+grid ───────────────→
+
+        ❌ deux animations différentes
+
+Maintenant :
+
+450 ms
+←────────────────────────────→
+
+VIEWER      largeur ↓
+DOCUMENTS   largeur ↑
+
+←────────────────────────────→
+
+        ✅ même animation
+
+Le bord gauche du viewer devient le point de synchronisation : lorsqu'il se déplace vers la droite, la zone documents s'étend exactement en même temps.
 
 
 ---
 
-6. CSS du viewer
+5. Je recommande aussi de ne pas changer brutalement 3 → 2 colonnes
 
-.viewer {
+C'est probablement l'autre source de l'impression de manque de fluidité.
 
-    min-width: 0;
+Supprimez :
 
-    min-height: 0;
-
-    overflow: hidden;
-
-    display: flex;
-
-    flex-direction: column;
-
-    background: #17202d;
-
-    opacity: 0;
-
-    visibility: hidden;
-
-    transform:
-        translateX(30px);
-
-    pointer-events: none;
-
-    transition:
-        opacity 400ms ease,
-        transform 400ms
-        cubic-bezier(.4, 0, .2, 1),
-        visibility 0s linear 400ms;
-
+.layout.viewer-open .documents {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+et utilisez simplement :
 
-.viewer.open {
+.documents {
+    display: grid;
 
-    opacity: 1;
+    grid-template-columns:
+        repeat(
+            auto-fill,
+            minmax(220px, 1fr)
+        );
 
-    visibility: visible;
+    gap: 16px;
 
-    transform:
-        translateX(0);
-
-    pointer-events: auto;
+    align-content: start;
 
     transition:
-        opacity 400ms ease,
-        transform 400ms
-        cubic-bezier(.4, 0, .2, 1),
-        visibility 0s linear 0s;
-
+        opacity 200ms ease;
 }
 
-Les deux animations utilisent maintenant exactement :
-
-400ms
-cubic-bezier(.4, 0, .2, 1)
-
-Donc :
-
-Viewer :
-
-████████████████→
-
-Documents :
-
-←████████████████
-
-se produisent simultanément.
+Ainsi les cartes s'adaptent naturellement à l'espace disponible au lieu de recevoir une instruction brutale "passe de 3 à 2 colonnes".
 
 
 ---
 
-7. Sur mobile
+Résultat
 
-On conserve votre comportement :
+À la fermeture :
 
-@media (max-width: 800px) {
+ÉTAT 1
 
-    .layout {
+┌─────────┬──────────────┬─────────────┐
+│ SIDENAV │  DOCUMENTS   │   VIEWER    │
+│         │  PDF PDF     │             │
+│         │  PDF PDF     │             │
+└─────────┴──────────────┴─────────────┘
 
-        display: block;
+                  ↓
 
-        height: auto;
+             animation 450ms
 
-        overflow: visible;
+                  ↓
 
-    }
+┌─────────┬─────────────────────────────┐
+│ SIDENAV │        DOCUMENTS            │
+│         │  PDF  PDF  PDF              │
+│         │  PDF  PDF  PDF              │
+└─────────┴─────────────────────────────┘
 
-    .viewer {
+Pas de saut, pas d'attente de 350/400 ms, pas de déplacement séparé.
 
-        display: none;
-
-    }
-
-}
-
-et :
-
-if (
-    window.matchMedia(
-        "(max-width: 800px)"
-    ).matches
-) {
-
-    window.open(
-        selectedFile.url,
-        "_blank"
-    );
-
-    return;
-}
-
-Donc :
-
-PC :
-
-> PDF → viewer animé ↔ documents animés
-
-
-
-Mobile :
-
-> PDF → nouvel onglet directement
-
-
-
-C'est cette architecture que je garderais pour la version finale de votre portail : la pagination reste fixe en bas et le viewer + la zone des documents évoluent ensemble pendant les 400 ms de l'animation.
+Le viewer rétrécit pendant que le contenu documents récupère exactement le même espace. C'est la solution que je privilégierais pour votre interface.

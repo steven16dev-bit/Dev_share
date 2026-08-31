@@ -1,295 +1,671 @@
-Oui. Le problème vient du fait que nous animons deux propriétés différentes : le viewer avec transform, et le layout avec grid-template-columns. Visuellement, leurs vitesses ne sont donc pas identiques.
+Oui. Pour la partie Actualités, je vous conseille de faire Lire la suite comme une vraie navigation vers une page dédiée à l'article.
 
-Pour obtenir une fermeture vraiment synchronisée, je vous conseille de ne plus utiliser transform pour le viewer. On anime uniquement la largeur du panneau. Ainsi, le viewer et les documents se déplacent exactement ensemble.
+Structure proposée
 
-1. Remplacez le CSS du layout
+Accueil
+   │
+   └── Actualités
+          │
+          └── Carte actualité
+                 ├── Image
+                 ├── Catégorie
+                 ├── Date
+                 ├── Titre
+                 ├── Résumé
+                 └── Lire la suite
+                         ↓
+                  article.html?id=1
 
-.layout {
-    display: grid;
+1. Carte d'actualité
 
-    grid-template-columns:
-        250px
-        minmax(0, 1fr)
-        0fr;
+<article class="news-card">
 
-    height: calc(100vh - 76px);
+    <div class="news-image">
+        <img
+            src="images/news-01.jpg"
+            alt="Actualité"
+        >
+    </div>
 
-    overflow: hidden;
+    <div class="news-body">
 
-    transition:
-        grid-template-columns
-        450ms
-        cubic-bezier(0.22, 1, 0.36, 1);
-}
+        <span class="news-category">
+            Entreprise
+        </span>
 
+        <div class="news-date">
+            31 août 2026
+        </div>
 
-/* Viewer ouvert */
+        <h3>
+            Nouveau projet stratégique de l'entreprise
+        </h3>
 
-.layout.viewer-open {
-    grid-template-columns:
-        250px
-        minmax(0, 1fr)
-        minmax(400px, 48%);
-}
+        <p>
+            Découvrez les dernières informations
+            concernant ce nouveau projet...
+        </p>
 
-Ici, la largeur du viewer et celle de la zone documents changent dans la même animation.
+        <a
+            href="article.html?id=1"
+            class="news-read-more"
+        >
+            Lire la suite
+            <span>→</span>
+        </a>
 
+    </div>
 
----
+</article>
 
-2. Remplacez complètement le CSS .viewer
+Le point important est :
 
-.viewer {
-    min-width: 0;
-    min-height: 0;
+href="article.html?id=1"
 
-    overflow: hidden;
-
-    display: flex;
-    flex-direction: column;
-
-    background: #17202d;
-
-    opacity: 0;
-
-    visibility: hidden;
-
-    /*
-       IMPORTANT :
-       pas de translateX()
-    */
-
-    pointer-events: none;
-
-    transition:
-        opacity 250ms ease,
-        visibility 0s linear 450ms;
-}
-
-
-.viewer.open {
-
-    opacity: 1;
-
-    visibility: visible;
-
-    pointer-events: auto;
-
-    transition:
-        opacity 250ms ease,
-        visibility 0s linear 0s;
-}
-
-On supprime complètement :
-
-transform: translateX(...);
-
-C'est justement ce qui créait le décalage visuel.
+Ainsi, chaque actualité possède son propre identifiant.
 
 
 ---
 
-3. openViewer()
+2. Page article.html
 
-function openViewer(id) {
+Créez :
 
-    const selectedFile = documents.find(
-        file => file.id === id
-    );
+portal/
+│
+├── index.html
+├── documents.html
+├── article.html
+│
+├── css/
+│   ├── style.css
+│   ├── documents.css
+│   └── article.css
+│
+├── js/
+│   ├── main.js
+│   ├── documents.js
+│   └── article.js
+│
+└── images/
 
-    if (!selectedFile) return;
+La page article peut avoir cette structure :
+
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Actualité</title>
+
+    <link
+        rel="stylesheet"
+        href="css/style.css"
+    >
+
+    <link
+        rel="stylesheet"
+        href="css/article.css"
+    >
+
+</head>
+
+<body>
+
+    <!-- Header -->
+
+    <header class="header">
+        ...
+    </header>
 
 
-    /* Mobile */
+    <main class="article-page">
 
-    if (
-        window.matchMedia("(max-width: 800px)").matches
-    ) {
+        <article class="article">
 
-        window.open(
-            selectedFile.url,
-            "_blank"
-        );
+            <div class="article-category">
+                Entreprise
+            </div>
 
-        return;
+            <h1
+                id="articleTitle"
+                class="article-title"
+            ></h1>
+
+            <div
+                id="articleDate"
+                class="article-date"
+            ></div>
+
+            <img
+                id="articleImage"
+                class="article-image"
+                src=""
+                alt=""
+            >
+
+            <div
+                id="articleContent"
+                class="article-content"
+            ></div>
+
+        </article>
+
+    </main>
+
+
+    <script src="js/article.js"></script>
+
+</body>
+
+</html>
+
+
+---
+
+3. Données des actualités
+
+Pour commencer sans API, vous pouvez mettre les articles dans article.js :
+
+const articles = [
+
+    {
+        id: 1,
+
+        title:
+            "Nouveau projet stratégique de l'entreprise",
+
+        category:
+            "Entreprise",
+
+        date:
+            "31 août 2026",
+
+        image:
+            "images/news-01.jpg",
+
+        content: `
+            <p>
+                L'entreprise annonce le lancement
+                d'un nouveau projet stratégique.
+            </p>
+
+            <p>
+                Ce projet vise à améliorer les
+                performances et la qualité des services.
+            </p>
+
+            <h2>
+                Les objectifs du projet
+            </h2>
+
+            <p>
+                Plusieurs actions seront mises en œuvre
+                afin d'atteindre les objectifs fixés.
+            </p>
+        `
+    },
+
+
+    {
+        id: 2,
+
+        title:
+            "Nouvelle procédure interne",
+
+        category:
+            "Information",
+
+        date:
+            "28 août 2026",
+
+        image:
+            "images/news-02.jpg",
+
+        content: `
+            <p>
+                Une nouvelle procédure interne
+                entre en vigueur.
+            </p>
+
+            <p>
+                Cette procédure concerne l'ensemble
+                des directions concernées.
+            </p>
+        `
     }
 
-
-    currentDocument = selectedFile;
-
-
-    const layout =
-        document.getElementById("mainLayout");
-
-    const viewer =
-        document.getElementById("pdfViewerPanel");
-
-    const pdf =
-        document.getElementById("pdfViewer");
-
-    const title =
-        document.getElementById("viewerTitle");
-
-
-    title.textContent =
-        selectedFile.name;
-
-
-    pdf.src =
-        selectedFile.url +
-        "#toolbar=1&navpanes=1";
-
-
-    /*
-       Les deux changements sont déclenchés
-       exactement dans la même frame.
-    */
-
-    requestAnimationFrame(() => {
-
-        layout.classList.add("viewer-open");
-
-        viewer.classList.add("open");
-
-    });
-
-}
+];
 
 
 ---
 
-4. Nouveau closeViewer()
+4. Récupérer l'ID dans l'URL
 
-C'est la partie la plus importante :
-
-function closeViewer() {
-
-    const layout =
-        document.getElementById("mainLayout");
-
-    const viewer =
-        document.getElementById("pdfViewerPanel");
-
-    const pdf =
-        document.getElementById("pdfViewer");
-
-
-    /*
-       Les deux commencent à se fermer
-       simultanément.
-    */
-
-    layout.classList.remove(
-        "viewer-open"
+const params =
+    new URLSearchParams(
+        window.location.search
     );
 
-    viewer.classList.remove(
-        "open"
+const articleId =
+    Number(
+        params.get("id")
+    );
+
+Puis rechercher l'article :
+
+const article =
+    articles.find(
+        item => item.id === articleId
     );
 
 
-    /*
-       On attend la fin de l'animation
-       uniquement pour vider le PDF.
-    */
+---
 
-    setTimeout(() => {
+5. Afficher l'article
 
-        pdf.src = "";
+if (article) {
 
-        currentDocument = null;
+    document.getElementById(
+        "articleTitle"
+    ).textContent =
+        article.title;
 
-    }, 450);
+
+    document.getElementById(
+        "articleDate"
+    ).textContent =
+        article.date;
+
+
+    document.getElementById(
+        "articleImage"
+    ).src =
+        article.image;
+
+
+    document.getElementById(
+        "articleImage"
+    ).alt =
+        article.title;
+
+
+    document.getElementById(
+        "articleContent"
+    ).innerHTML =
+        article.content;
 
 }
 
-Pourquoi c'est beaucoup plus fluide
+Si l'utilisateur clique :
 
-Avant :
+Lire la suite
 
-VIEWER
-transform ───────────────→
+il arrive sur :
 
-DOCUMENTS
-grid ───────────────→
+article.html?id=1
 
-        ❌ deux animations différentes
-
-Maintenant :
-
-450 ms
-←────────────────────────────→
-
-VIEWER      largeur ↓
-DOCUMENTS   largeur ↑
-
-←────────────────────────────→
-
-        ✅ même animation
-
-Le bord gauche du viewer devient le point de synchronisation : lorsqu'il se déplace vers la droite, la zone documents s'étend exactement en même temps.
+et la page charge automatiquement l'article n°1.
 
 
 ---
 
-5. Je recommande aussi de ne pas changer brutalement 3 → 2 colonnes
+6. Style de la page article
 
-C'est probablement l'autre source de l'impression de manque de fluidité.
+.article-page {
+    max-width: 1000px;
 
-Supprimez :
+    margin: 0 auto;
 
-.layout.viewer-open .documents {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 40px 24px 60px;
 }
 
-et utilisez simplement :
 
-.documents {
-    display: grid;
+.article {
+    background: white;
 
-    grid-template-columns:
-        repeat(
-            auto-fill,
-            minmax(220px, 1fr)
-        );
+    border-radius: 12px;
 
-    gap: 16px;
-
-    align-content: start;
-
-    transition:
-        opacity 200ms ease;
+    overflow: hidden;
 }
 
-Ainsi les cartes s'adaptent naturellement à l'espace disponible au lieu de recevoir une instruction brutale "passe de 3 à 2 colonnes".
+
+.article-category {
+    display: inline-block;
+
+    margin: 30px 40px 10px;
+
+    padding: 6px 12px;
+
+    border-radius: 20px;
+
+    background: #eef4ff;
+
+    font-size: 13px;
+
+    font-weight: 600;
+}
 
 
----
+.article-title {
+    margin: 0 40px 10px;
 
-Résultat
+    font-size: 34px;
 
-À la fermeture :
+    line-height: 1.25;
+}
 
-ÉTAT 1
 
-┌─────────┬──────────────┬─────────────┐
-│ SIDENAV │  DOCUMENTS   │   VIEWER    │
-│         │  PDF PDF     │             │
-│         │  PDF PDF     │             │
-└─────────┴──────────────┴─────────────┘
+.article-date {
+    margin: 0 40px 30px;
 
-                  ↓
+    color: #667085;
 
-             animation 450ms
+    font-size: 14px;
+}
 
-                  ↓
 
-┌─────────┬─────────────────────────────┐
-│ SIDENAV │        DOCUMENTS            │
-│         │  PDF  PDF  PDF              │
-│         │  PDF  PDF  PDF              │
-└─────────┴─────────────────────────────┘
+.article-image {
+    width: 100%;
 
-Pas de saut, pas d'attente de 350/400 ms, pas de déplacement séparé.
+    max-height: 500px;
 
-Le viewer rétrécit pendant que le contenu documents récupère exactement le même espace. C'est la solution que je privilégierais pour votre interface.
+    object-fit: cover;
+
+    display: block;
+}
+
+
+.article-content {
+    padding: 35px 40px;
+
+    font-size: 17px;
+
+    line-height: 1.8;
+
+    color: #344054;
+}
+
+
+.article-content h2 {
+    margin-top: 35px;
+
+    color: #17202d;
+}
+
+
+.article-content p {
+    margin-bottom: 20px;
+}
+
+
+@media(max-width: 800px) {
+
+    .article-page {
+        padding: 20px 14px 40px;
+    }
+
+    .article-title {
+        margin-left: 20px;
+        margin-right: 20px;
+
+        font-size: 26px;
+    }
+
+    .article-category {
+        margin-left: 20px;
+        margin-right: 20px;
+    }
+
+    .article-date {
+        margin-left: 20px;
+        margin-right: 20px;
+    }
+
+    .article-content {
+        padding: 25px 20px;
+
+        font-size: 16px;
+    }
+
+}
+
+Et pour votre carousel d'actualité
+
+Je recommande que chaque slide ait son propre id, par exemple :
+
+{
+    id: 1,
+    title: "...",
+    summary: "...",
+    image: "...",
+    date: "...",
+    content: "..."
+}
+
+et le bouton :
+
+<a href="article.html?id=1">
+    Lire la suite →
+</a>
+
+Ainsi, votre carousel de la page d'accueil reste simple, tandis que chaque actualité possède une vraie page HTML complète.
+
+Pour la suite, on pourra faire la version plus professionnelle avec une seule article.html dynamique, retour vers les actualités, image principale, contenu riche, pièces jointes PDF et actualités précédente/suivante.
+
+
+-----
+
+Placez ce code dans js/article.js, après la déclaration du tableau articles.
+
+L'ordre doit être exactement celui-ci :
+
+portal/
+│
+├── article.html
+│
+├── js/
+│   └── article.js    ← ICI
+│
+└── images/
+
+article.js
+
+// ========================================
+// 1. Liste des articles
+// ========================================
+
+const articles = [
+
+    {
+        id: 1,
+
+        title: "Nouveau projet stratégique",
+
+        category: "Entreprise",
+
+        date: "31 août 2026",
+
+        image: "images/news-01.jpg",
+
+        content: `
+            <p>
+                L'entreprise annonce le lancement
+                d'un nouveau projet stratégique.
+            </p>
+
+            <p>
+                Ce projet vise à améliorer les
+                performances et la qualité des services.
+            </p>
+        `
+    },
+
+    {
+        id: 2,
+
+        title: "Nouvelle procédure interne",
+
+        category: "Information",
+
+        date: "28 août 2026",
+
+        image: "images/news-02.jpg",
+
+        content: `
+            <p>
+                Une nouvelle procédure interne
+                entre en vigueur.
+            </p>
+        `
+    }
+
+];
+
+
+// ========================================
+// 2. Récupérer l'ID depuis l'URL
+// ========================================
+
+const params =
+    new URLSearchParams(
+        window.location.search
+    );
+
+const articleId =
+    Number(
+        params.get("id")
+    );
+
+
+// ========================================
+// 3. Rechercher l'article
+// ========================================
+
+const article =
+    articles.find(
+        item => item.id === articleId
+    );
+
+
+// ========================================
+// 4. Afficher l'article
+// ========================================
+
+if (article) {
+
+    document.getElementById(
+        "articleTitle"
+    ).textContent =
+        article.title;
+
+
+    document.getElementById(
+        "articleDate"
+    ).textContent =
+        article.date;
+
+
+    document.getElementById(
+        "articleImage"
+    ).src =
+        article.image;
+
+
+    document.getElementById(
+        "articleImage"
+    ).alt =
+        article.title;
+
+
+    document.getElementById(
+        "articleContent"
+    ).innerHTML =
+        article.content;
+
+}
+
+Et dans article.html
+
+À la fin du <body>, vous devez avoir :
+
+<script src="js/article.js"></script>
+
+Donc :
+
+<body>
+
+    <!-- contenu de la page -->
+
+    <main class="article-page">
+
+        <article class="article">
+
+            <h1 id="articleTitle"></h1>
+
+            <div id="articleDate"></div>
+
+            <img
+                id="articleImage"
+                src=""
+                alt=""
+            >
+
+            <div
+                id="articleContent"
+            ></div>
+
+        </article>
+
+    </main>
+
+
+    <!-- IMPORTANT -->
+    <script src="js/article.js"></script>
+
+</body>
+
+Comment ça fonctionne
+
+Votre carte dans l'accueil :
+
+<a href="article.html?id=1">
+    Lire la suite →
+</a>
+
+ouvre :
+
+article.html?id=1
+
+Puis article.js récupère :
+
+params.get("id")
+
+qui donne :
+
+1
+
+et cherche :
+
+articles.find(item => item.id === 1)
+
+Il affiche alors l'article correspondant.
+
+Pour l'article n°2 :
+
+<a href="article.html?id=2">
+    Lire la suite →
+</a>
+
+➡️ article.html?id=2
+
+➡️ l'article n°2 est affiché.
+
+Donc le code "Récupérer l'ID" ne doit pas être placé dans index.html : il appartient à article.js, puisque c'est la page article.html qui reçoit l'ID.

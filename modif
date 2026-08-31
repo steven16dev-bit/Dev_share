@@ -1,578 +1,133 @@
-Oui. Pour la partie Actualités, je vous conseille de faire Lire la suite comme une vraie navigation vers une page dédiée à l'article.
+Oui. Pour la page détail d'une actualité, je vous conseille une structure simple en 3 niveaux :
 
-Structure proposée
-
-Accueil
-   │
-   └── Actualités
-          │
-          └── Carte actualité
-                 ├── Image
-                 ├── Catégorie
-                 ├── Date
-                 ├── Titre
-                 ├── Résumé
-                 └── Lire la suite
-                         ↓
-                  article.html?id=1
-
-1. Carte d'actualité
-
-<article class="news-card">
-
-    <div class="news-image">
-        <img
-            src="images/news-01.jpg"
-            alt="Actualité"
-        >
-    </div>
-
-    <div class="news-body">
-
-        <span class="news-category">
-            Entreprise
-        </span>
-
-        <div class="news-date">
-            31 août 2026
-        </div>
-
-        <h3>
-            Nouveau projet stratégique de l'entreprise
-        </h3>
-
-        <p>
-            Découvrez les dernières informations
-            concernant ce nouveau projet...
-        </p>
-
-        <a
-            href="article.html?id=1"
-            class="news-read-more"
-        >
-            Lire la suite
-            <span>→</span>
-        </a>
-
-    </div>
-
-</article>
-
-Le point important est :
-
-href="article.html?id=1"
-
-Ainsi, chaque actualité possède son propre identifiant.
+1. Titre → titre principal de l'actualité
 
 
----
-
-2. Page article.html
-
-Créez :
-
-portal/
-│
-├── index.html
-├── documents.html
-├── article.html
-│
-├── css/
-│   ├── style.css
-│   ├── documents.css
-│   └── article.css
-│
-├── js/
-│   ├── main.js
-│   ├── documents.js
-│   └── article.js
-│
-└── images/
-
-La page article peut avoir cette structure :
-
-<!DOCTYPE html>
-<html lang="fr">
-
-<head>
-
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Actualité</title>
-
-    <link
-        rel="stylesheet"
-        href="css/style.css"
-    >
-
-    <link
-        rel="stylesheet"
-        href="css/article.css"
-    >
-
-</head>
-
-<body>
-
-    <!-- Header -->
-
-    <header class="header">
-        ...
-    </header>
+2. Description → résumé/chapeau sous le titre
 
 
-    <main class="article-page">
-
-        <article class="article">
-
-            <div class="article-category">
-                Entreprise
-            </div>
-
-            <h1
-                id="articleTitle"
-                class="article-title"
-            ></h1>
-
-            <div
-                id="articleDate"
-                class="article-date"
-            ></div>
-
-            <img
-                id="articleImage"
-                class="article-image"
-                src=""
-                alt=""
-            >
-
-            <div
-                id="articleContent"
-                class="article-content"
-            ></div>
-
-        </article>
-
-    </main>
+3. Détail → contenu complet composé de plusieurs paragraphes
 
 
-    <script src="js/article.js"></script>
 
-</body>
+1. Structure des données
 
-</html>
-
-
----
-
-3. Données des actualités
-
-Pour commencer sans API, vous pouvez mettre les articles dans article.js :
+Dans article.js, modifiez vos articles ainsi :
 
 const articles = [
 
     {
         id: 1,
 
-        title:
-            "Nouveau projet stratégique de l'entreprise",
+        title: "Nouveau projet stratégique de l'entreprise",
 
-        category:
-            "Entreprise",
-
-        date:
-            "31 août 2026",
-
-        image:
-            "images/news-01.jpg",
-
-        content: `
-            <p>
-                L'entreprise annonce le lancement
-                d'un nouveau projet stratégique.
-            </p>
-
-            <p>
-                Ce projet vise à améliorer les
-                performances et la qualité des services.
-            </p>
-
-            <h2>
-                Les objectifs du projet
-            </h2>
-
-            <p>
-                Plusieurs actions seront mises en œuvre
-                afin d'atteindre les objectifs fixés.
-            </p>
-        `
-    },
-
-
-    {
-        id: 2,
-
-        title:
-            "Nouvelle procédure interne",
-
-        category:
-            "Information",
-
-        date:
-            "28 août 2026",
-
-        image:
-            "images/news-02.jpg",
-
-        content: `
-            <p>
-                Une nouvelle procédure interne
-                entre en vigueur.
-            </p>
-
-            <p>
-                Cette procédure concerne l'ensemble
-                des directions concernées.
-            </p>
-        `
-    }
-
-];
-
-
----
-
-4. Récupérer l'ID dans l'URL
-
-const params =
-    new URLSearchParams(
-        window.location.search
-    );
-
-const articleId =
-    Number(
-        params.get("id")
-    );
-
-Puis rechercher l'article :
-
-const article =
-    articles.find(
-        item => item.id === articleId
-    );
-
-
----
-
-5. Afficher l'article
-
-if (article) {
-
-    document.getElementById(
-        "articleTitle"
-    ).textContent =
-        article.title;
-
-
-    document.getElementById(
-        "articleDate"
-    ).textContent =
-        article.date;
-
-
-    document.getElementById(
-        "articleImage"
-    ).src =
-        article.image;
-
-
-    document.getElementById(
-        "articleImage"
-    ).alt =
-        article.title;
-
-
-    document.getElementById(
-        "articleContent"
-    ).innerHTML =
-        article.content;
-
-}
-
-Si l'utilisateur clique :
-
-Lire la suite
-
-il arrive sur :
-
-article.html?id=1
-
-et la page charge automatiquement l'article n°1.
-
-
----
-
-6. Style de la page article
-
-.article-page {
-    max-width: 1000px;
-
-    margin: 0 auto;
-
-    padding: 40px 24px 60px;
-}
-
-
-.article {
-    background: white;
-
-    border-radius: 12px;
-
-    overflow: hidden;
-}
-
-
-.article-category {
-    display: inline-block;
-
-    margin: 30px 40px 10px;
-
-    padding: 6px 12px;
-
-    border-radius: 20px;
-
-    background: #eef4ff;
-
-    font-size: 13px;
-
-    font-weight: 600;
-}
-
-
-.article-title {
-    margin: 0 40px 10px;
-
-    font-size: 34px;
-
-    line-height: 1.25;
-}
-
-
-.article-date {
-    margin: 0 40px 30px;
-
-    color: #667085;
-
-    font-size: 14px;
-}
-
-
-.article-image {
-    width: 100%;
-
-    max-height: 500px;
-
-    object-fit: cover;
-
-    display: block;
-}
-
-
-.article-content {
-    padding: 35px 40px;
-
-    font-size: 17px;
-
-    line-height: 1.8;
-
-    color: #344054;
-}
-
-
-.article-content h2 {
-    margin-top: 35px;
-
-    color: #17202d;
-}
-
-
-.article-content p {
-    margin-bottom: 20px;
-}
-
-
-@media(max-width: 800px) {
-
-    .article-page {
-        padding: 20px 14px 40px;
-    }
-
-    .article-title {
-        margin-left: 20px;
-        margin-right: 20px;
-
-        font-size: 26px;
-    }
-
-    .article-category {
-        margin-left: 20px;
-        margin-right: 20px;
-    }
-
-    .article-date {
-        margin-left: 20px;
-        margin-right: 20px;
-    }
-
-    .article-content {
-        padding: 25px 20px;
-
-        font-size: 16px;
-    }
-
-}
-
-Et pour votre carousel d'actualité
-
-Je recommande que chaque slide ait son propre id, par exemple :
-
-{
-    id: 1,
-    title: "...",
-    summary: "...",
-    image: "...",
-    date: "...",
-    content: "..."
-}
-
-et le bouton :
-
-<a href="article.html?id=1">
-    Lire la suite →
-</a>
-
-Ainsi, votre carousel de la page d'accueil reste simple, tandis que chaque actualité possède une vraie page HTML complète.
-
-Pour la suite, on pourra faire la version plus professionnelle avec une seule article.html dynamique, retour vers les actualités, image principale, contenu riche, pièces jointes PDF et actualités précédente/suivante.
-
-
------
-
-Placez ce code dans js/article.js, après la déclaration du tableau articles.
-
-L'ordre doit être exactement celui-ci :
-
-portal/
-│
-├── article.html
-│
-├── js/
-│   └── article.js    ← ICI
-│
-└── images/
-
-article.js
-
-// ========================================
-// 1. Liste des articles
-// ========================================
-
-const articles = [
-
-    {
-        id: 1,
-
-        title: "Nouveau projet stratégique",
-
-        category: "Entreprise",
+        description:
+            "L'entreprise annonce le lancement d'un nouveau projet stratégique visant à améliorer ses performances et la qualité de ses services.",
 
         date: "31 août 2026",
 
         image: "images/news-01.jpg",
 
-        content: `
-            <p>
-                L'entreprise annonce le lancement
-                d'un nouveau projet stratégique.
-            </p>
+        paragraphs: [
+            "L'entreprise annonce le lancement d'un nouveau projet stratégique. Cette initiative s'inscrit dans le cadre de sa démarche d'amélioration continue.",
 
-            <p>
-                Ce projet vise à améliorer les
-                performances et la qualité des services.
-            </p>
-        `
-    },
+            "Le projet permettra notamment d'améliorer l'organisation des activités et de renforcer la qualité des services proposés.",
 
-    {
-        id: 2,
+            "Plusieurs directions participeront à la mise en œuvre de ce projet au cours des prochains mois.",
 
-        title: "Nouvelle procédure interne",
-
-        category: "Information",
-
-        date: "28 août 2026",
-
-        image: "images/news-02.jpg",
-
-        content: `
-            <p>
-                Une nouvelle procédure interne
-                entre en vigueur.
-            </p>
-        `
+            "Des actions spécifiques seront également mises en place afin d'assurer un suivi régulier des résultats."
+        ]
     }
 
 ];
 
 
-// ========================================
-// 2. Récupérer l'ID depuis l'URL
-// ========================================
+---
 
-const params =
-    new URLSearchParams(
-        window.location.search
-    );
+2. HTML de article.html
 
-const articleId =
-    Number(
-        params.get("id")
-    );
+Utilisez :
 
+<main class="article-page">
 
-// ========================================
-// 3. Rechercher l'article
-// ========================================
+    <article class="article">
 
-const article =
-    articles.find(
-        item => item.id === articleId
-    );
+        <!-- TITRE -->
+
+        <h1
+            id="articleTitle"
+            class="article-title"
+        ></h1>
 
 
-// ========================================
-// 4. Afficher l'article
-// ========================================
+        <!-- DESCRIPTION -->
+
+        <div
+            id="articleDescription"
+            class="article-description"
+        ></div>
+
+
+        <!-- DATE -->
+
+        <div
+            id="articleDate"
+            class="article-date"
+        ></div>
+
+
+        <!-- IMAGE -->
+
+        <img
+            id="articleImage"
+            class="article-image"
+            src=""
+            alt=""
+        >
+
+
+        <!-- DÉTAIL -->
+
+        <div
+            id="articleDetail"
+            class="article-detail"
+        ></div>
+
+    </article>
+
+</main>
+
+
+---
+
+3. JavaScript
+
+Dans article.js :
 
 if (article) {
 
+    // Titre
     document.getElementById(
         "articleTitle"
     ).textContent =
         article.title;
 
 
+    // Description
+    document.getElementById(
+        "articleDescription"
+    ).textContent =
+        article.description;
+
+
+    // Date
     document.getElementById(
         "articleDate"
     ).textContent =
         article.date;
 
 
+    // Image
     document.getElementById(
         "articleImage"
     ).src =
@@ -585,87 +140,82 @@ if (article) {
         article.title;
 
 
-    document.getElementById(
-        "articleContent"
-    ).innerHTML =
-        article.content;
+    // Détail
+    const detail =
+        document.getElementById(
+            "articleDetail"
+        );
+
+
+    detail.innerHTML = "";
+
+
+    article.paragraphs.forEach(
+        paragraph => {
+
+            const p =
+                document.createElement("p");
+
+            p.textContent =
+                paragraph;
+
+            detail.appendChild(p);
+
+        }
+    );
 
 }
 
-Et dans article.html
 
-À la fin du <body>, vous devez avoir :
+---
 
-<script src="js/article.js"></script>
+4. Résultat visuel
 
-Donc :
+┌──────────────────────────────────────────────┐
+│                                              │
+│        Nouveau projet stratégique            │
+│        de l'entreprise                       │
+│                                              │
+│  L'entreprise annonce le lancement d'un      │
+│  nouveau projet stratégique visant à...      │
+│                                              │
+│  31 août 2026                                │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │                                        │  │
+│  │              IMAGE                     │  │
+│  │                                        │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  L'entreprise annonce le lancement du       │
+│  nouveau projet stratégique. Cette           │
+│  initiative s'inscrit dans le cadre...       │
+│                                              │
+│  Le projet permettra notamment               │
+│  d'améliorer l'organisation des activités    │
+│  et de renforcer la qualité des services.    │
+│                                              │
+│  Plusieurs directions participeront à la     │
+│  mise en œuvre de ce projet...               │
+│                                              │
+└──────────────────────────────────────────────┘
 
-<body>
+Structure finale
 
-    <!-- contenu de la page -->
+Actualité
+│
+├── Titre
+│
+├── Description
+│
+├── Date
+│
+├── Image
+│
+└── Détail
+    ├── Paragraphe 1
+    ├── Paragraphe 2
+    ├── Paragraphe 3
+    └── Paragraphe 4
 
-    <main class="article-page">
-
-        <article class="article">
-
-            <h1 id="articleTitle"></h1>
-
-            <div id="articleDate"></div>
-
-            <img
-                id="articleImage"
-                src=""
-                alt=""
-            >
-
-            <div
-                id="articleContent"
-            ></div>
-
-        </article>
-
-    </main>
-
-
-    <!-- IMPORTANT -->
-    <script src="js/article.js"></script>
-
-</body>
-
-Comment ça fonctionne
-
-Votre carte dans l'accueil :
-
-<a href="article.html?id=1">
-    Lire la suite →
-</a>
-
-ouvre :
-
-article.html?id=1
-
-Puis article.js récupère :
-
-params.get("id")
-
-qui donne :
-
-1
-
-et cherche :
-
-articles.find(item => item.id === 1)
-
-Il affiche alors l'article correspondant.
-
-Pour l'article n°2 :
-
-<a href="article.html?id=2">
-    Lire la suite →
-</a>
-
-➡️ article.html?id=2
-
-➡️ l'article n°2 est affiché.
-
-Donc le code "Récupérer l'ID" ne doit pas être placé dans index.html : il appartient à article.js, puisque c'est la page article.html qui reçoit l'ID.
+Cette structure est également très facile à faire évoluer plus tard vers une actualité venant d'une base Oracle/API, sans devoir modifier la page HTML.

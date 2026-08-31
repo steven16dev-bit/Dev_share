@@ -1,603 +1,573 @@
-Oui. Pour la page détail d'une actualité, je vous conseille une structure simple en 3 niveaux :
+Oui. Pour la page Actualités, on peut afficher 6 articles par page avec une pagination en bas.
 
-1. Titre → titre principal de l'actualité
+Structure
 
+┌──────────────────────────────────────────────┐
+│                 ACTUALITÉS                   │
+├──────────────────────────────────────────────┤
+│  Article 1       Article 2       Article 3  │
+│                                              │
+│  Article 4       Article 5       Article 6  │
+│                                              │
+├──────────────────────────────────────────────┤
+│              ‹  1  2  3  4  ›               │
+└──────────────────────────────────────────────┘
 
-2. Description → résumé/chapeau sous le titre
+1. HTML
 
+Dans votre page actualités :
 
-3. Détail → contenu complet composé de plusieurs paragraphes
+<main class="news-page">
 
+    <h1 class="news-page-title">
+        Actualités
+    </h1>
 
+    <div
+        class="news-grid"
+        id="newsContainer"
+    ></div>
 
-1. Structure des données
-
-Dans article.js, modifiez vos articles ainsi :
-
-const articles = [
-
-    {
-        id: 1,
-
-        title: "Nouveau projet stratégique de l'entreprise",
-
-        description:
-            "L'entreprise annonce le lancement d'un nouveau projet stratégique visant à améliorer ses performances et la qualité de ses services.",
-
-        date: "31 août 2026",
-
-        image: "images/news-01.jpg",
-
-        paragraphs: [
-            "L'entreprise annonce le lancement d'un nouveau projet stratégique. Cette initiative s'inscrit dans le cadre de sa démarche d'amélioration continue.",
-
-            "Le projet permettra notamment d'améliorer l'organisation des activités et de renforcer la qualité des services proposés.",
-
-            "Plusieurs directions participeront à la mise en œuvre de ce projet au cours des prochains mois.",
-
-            "Des actions spécifiques seront également mises en place afin d'assurer un suivi régulier des résultats."
-        ]
-    }
-
-];
-
-
----
-
-2. HTML de article.html
-
-Utilisez :
-
-<main class="article-page">
-
-    <article class="article">
-
-        <!-- TITRE -->
-
-        <h1
-            id="articleTitle"
-            class="article-title"
-        ></h1>
-
-
-        <!-- DESCRIPTION -->
-
-        <div
-            id="articleDescription"
-            class="article-description"
-        ></div>
-
-
-        <!-- DATE -->
-
-        <div
-            id="articleDate"
-            class="article-date"
-        ></div>
-
-
-        <!-- IMAGE -->
-
-        <img
-            id="articleImage"
-            class="article-image"
-            src=""
-            alt=""
-        >
-
-
-        <!-- DÉTAIL -->
-
-        <div
-            id="articleDetail"
-            class="article-detail"
-        ></div>
-
-    </article>
+    <div
+        class="news-pagination"
+        id="newsPagination"
+    ></div>
 
 </main>
 
+2. JavaScript
 
----
+Dans votre news.js :
 
-3. JavaScript
+/* ==========================================
+   CONFIGURATION
+========================================== */
 
-Dans article.js :
+const NEWS_PER_PAGE = 6;
 
-if (article) {
-
-    // Titre
-    document.getElementById(
-        "articleTitle"
-    ).textContent =
-        article.title;
+let currentNewsPage = 1;
 
 
-    // Description
-    document.getElementById(
-        "articleDescription"
-    ).textContent =
-        article.description;
-
-
-    // Date
-    document.getElementById(
-        "articleDate"
-    ).textContent =
-        article.date;
-
-
-    // Image
-    document.getElementById(
-        "articleImage"
-    ).src =
-        article.image;
-
-
-    document.getElementById(
-        "articleImage"
-    ).alt =
-        article.title;
-
-
-    // Détail
-    const detail =
-        document.getElementById(
-            "articleDetail"
-        );
-
-
-    detail.innerHTML = "";
-
-
-    article.paragraphs.forEach(
-        paragraph => {
-
-            const p =
-                document.createElement("p");
-
-            p.textContent =
-                paragraph;
-
-            detail.appendChild(p);
-
-        }
-    );
-
-}
-
-
----
-
-4. Résultat visuel
-
-┌──────────────────────────────────────────────┐
-│                                              │
-│        Nouveau projet stratégique            │
-│        de l'entreprise                       │
-│                                              │
-│  L'entreprise annonce le lancement d'un      │
-│  nouveau projet stratégique visant à...      │
-│                                              │
-│  31 août 2026                                │
-│                                              │
-│  ┌────────────────────────────────────────┐  │
-│  │                                        │  │
-│  │              IMAGE                     │  │
-│  │                                        │  │
-│  └────────────────────────────────────────┘  │
-│                                              │
-│  L'entreprise annonce le lancement du       │
-│  nouveau projet stratégique. Cette           │
-│  initiative s'inscrit dans le cadre...       │
-│                                              │
-│  Le projet permettra notamment               │
-│  d'améliorer l'organisation des activités    │
-│  et de renforcer la qualité des services.    │
-│                                              │
-│  Plusieurs directions participeront à la     │
-│  mise en œuvre de ce projet...               │
-│                                              │
-└──────────────────────────────────────────────┘
-
-Structure finale
-
-Actualité
-│
-├── Titre
-│
-├── Description
-│
-├── Date
-│
-├── Image
-│
-└── Détail
-    ├── Paragraphe 1
-    ├── Paragraphe 2
-    ├── Paragraphe 3
-    └── Paragraphe 4
-
-Cette structure est également très facile à faire évoluer plus tard vers une actualité venant d'une base Oracle/API, sans devoir modifier la page HTML.
-
-
-----
-Oui. Voici le article.js complet correspondant à notre structure actuelle : liste des articles, récupération de id depuis l'URL, affichage du titre + description + date + image + détails en paragraphes, et gestion d'un article inexistant.
-
-/* =========================================================
-   ARTICLE.JS
-   Page détail d'une actualité
-========================================================= */
-
-
-/* =========================================================
-   1. LISTE DES ARTICLES
-========================================================= */
+/* ==========================================
+   ARTICLES
+========================================== */
 
 const articles = [
-
-    {
-        id: 1,
-
-        title:
-            "Nouveau projet stratégique de l'entreprise",
-
-        description:
-            "L'entreprise annonce le lancement d'un nouveau projet stratégique visant à améliorer ses performances et la qualité de ses services.",
-
-        date:
-            "31 août 2026",
-
-        image:
-            "images/news-01.jpg",
-
-        paragraphs: [
-
-            "L'entreprise annonce le lancement d'un nouveau projet stratégique. Cette initiative s'inscrit dans le cadre de sa démarche d'amélioration continue.",
-
-            "Le projet permettra notamment d'améliorer l'organisation des activités et de renforcer la qualité des services proposés.",
-
-            "Plusieurs directions participeront à la mise en œuvre de ce projet au cours des prochains mois.",
-
-            "Des actions spécifiques seront également mises en place afin d'assurer un suivi régulier des résultats."
-
-        ]
-    },
-
-
-    {
-        id: 2,
-
-        title:
-            "Nouvelle procédure interne",
-
-        description:
-            "Une nouvelle procédure interne entre en vigueur afin d'améliorer l'organisation et le traitement des opérations.",
-
-        date:
-            "28 août 2026",
-
-        image:
-            "images/news-02.jpg",
-
-        paragraphs: [
-
-            "Une nouvelle procédure interne entre en vigueur à partir du 28 août 2026.",
-
-            "Cette procédure concerne l'ensemble des directions et services concernés par le processus.",
-
-            "Les responsables des différentes structures sont invités à prendre connaissance des nouvelles dispositions.",
-
-            "Cette nouvelle organisation permettra d'améliorer le suivi et la traçabilité des opérations."
-
-        ]
-    },
-
-
-    {
-        id: 3,
-
-        title:
-            "Réunion de coordination des directions",
-
-        description:
-            "Une réunion de coordination a été organisée afin de présenter les principaux résultats et les prochaines actions.",
-
-        date:
-            "25 août 2026",
-
-        image:
-            "images/news-03.jpg",
-
-        paragraphs: [
-
-            "Une réunion de coordination a été organisée entre les différentes directions de l'entreprise.",
-
-            "Cette rencontre a permis de présenter les principaux résultats obtenus au cours de la période précédente.",
-
-            "Les participants ont également présenté les difficultés rencontrées et les actions correctives proposées.",
-
-            "Un calendrier de suivi sera mis en place afin d'assurer la réalisation des différentes actions."
-
-        ]
-    }
-
+    // Vos articles ici
 ];
 
 
+/* ==========================================
+   AFFICHER LES ARTICLES
+========================================== */
 
-/* =========================================================
-   2. RÉCUPÉRER L'ID DEPUIS L'URL
-========================================================= */
+function renderNews() {
 
-const params =
-    new URLSearchParams(
-        window.location.search
-    );
-
-
-const articleId =
-    Number(
-        params.get("id")
-    );
-
-
-
-/* =========================================================
-   3. RECHERCHER L'ARTICLE
-========================================================= */
-
-const article =
-    articles.find(
-        item => item.id === articleId
-    );
-
-
-
-/* =========================================================
-   4. RÉFÉRENCES HTML
-========================================================= */
-
-const articleTitle =
-    document.getElementById(
-        "articleTitle"
-    );
-
-
-const articleDescription =
-    document.getElementById(
-        "articleDescription"
-    );
-
-
-const articleDate =
-    document.getElementById(
-        "articleDate"
-    );
-
-
-const articleImage =
-    document.getElementById(
-        "articleImage"
-    );
-
-
-const articleDetail =
-    document.getElementById(
-        "articleDetail"
-    );
-
-
-
-/* =========================================================
-   5. AFFICHER L'ARTICLE
-========================================================= */
-
-if (article) {
-
-
-    /* -----------------------------------------
-       TITRE
-    ----------------------------------------- */
-
-    if (articleTitle) {
-
-        articleTitle.textContent =
-            article.title;
-
-    }
-
-
-
-    /* -----------------------------------------
-       DESCRIPTION
-    ----------------------------------------- */
-
-    if (articleDescription) {
-
-        articleDescription.textContent =
-            article.description;
-
-    }
-
-
-
-    /* -----------------------------------------
-       DATE
-    ----------------------------------------- */
-
-    if (articleDate) {
-
-        articleDate.textContent =
-            article.date;
-
-    }
-
-
-
-    /* -----------------------------------------
-       IMAGE
-    ----------------------------------------- */
-
-    if (articleImage) {
-
-        articleImage.src =
-            article.image;
-
-        articleImage.alt =
-            article.title;
-
-    }
-
-
-
-    /* -----------------------------------------
-       DÉTAIL / PARAGRAPHES
-    ----------------------------------------- */
-
-    if (articleDetail) {
-
-        articleDetail.innerHTML = "";
-
-
-        article.paragraphs.forEach(
-            paragraph => {
-
-                const p =
-                    document.createElement(
-                        "p"
-                    );
-
-
-                p.textContent =
-                    paragraph;
-
-
-                articleDetail.appendChild(
-                    p
-                );
-
-            }
+    const container =
+        document.getElementById(
+            "newsContainer"
         );
 
-    }
+    if (!container) return;
 
 
-
-    /* -----------------------------------------
-       TITRE DU NAVIGATEUR
-    ----------------------------------------- */
-
-    document.title =
-        article.title;
+    container.innerHTML = "";
 
 
-}
+    const start =
+        (currentNewsPage - 1)
+        * NEWS_PER_PAGE;
 
 
-
-/* =========================================================
-   6. ARTICLE NON TROUVÉ
-========================================================= */
-
-else {
-
-    document.title =
-        "Actualité introuvable";
+    const end =
+        start + NEWS_PER_PAGE;
 
 
-    if (articleTitle) {
-
-        articleTitle.textContent =
-            "Actualité introuvable";
-
-    }
-
-
-    if (articleDescription) {
-
-        articleDescription.textContent =
-            "L'actualité demandée n'existe pas ou n'est plus disponible.";
-
-    }
+    const pageArticles =
+        articles.slice(
+            start,
+            end
+        );
 
 
-    if (articleDate) {
+    pageArticles.forEach(article => {
 
-        articleDate.textContent =
-            "";
+        const card =
+            document.createElement("article");
 
-    }
-
-
-    if (articleImage) {
-
-        articleImage.style.display =
-            "none";
-
-    }
+        card.className =
+            "news-card";
 
 
-    if (articleDetail) {
+        card.innerHTML = `
 
-        articleDetail.innerHTML = `
-            <p>
-                Cette actualité n'est pas disponible.
-            </p>
+            <div class="news-image">
+
+                <img
+                    src="${article.image}"
+                    alt="${article.title}"
+                >
+
+            </div>
+
+
+            <div class="news-body">
+
+                <div class="news-date">
+                    ${article.date}
+                </div>
+
+
+                <h2>
+                    ${article.title}
+                </h2>
+
+
+                <p class="news-description">
+                    ${article.description}
+                </p>
+
+
+                <a
+                    href="article.html?id=${article.id}"
+                    class="news-read-more"
+                >
+                    Lire la suite
+                    <span>→</span>
+                </a>
+
+            </div>
+
         `;
 
+
+        container.appendChild(card);
+
+    });
+
+
+    renderNewsPagination();
+
+}
+
+
+/* ==========================================
+   PAGINATION
+========================================== */
+
+function renderNewsPagination() {
+
+    const pagination =
+        document.getElementById(
+            "newsPagination"
+        );
+
+    if (!pagination) return;
+
+
+    pagination.innerHTML = "";
+
+
+    const totalPages =
+        Math.ceil(
+            articles.length
+            / NEWS_PER_PAGE
+        );
+
+
+    if (totalPages <= 1) {
+
+        pagination.style.display =
+            "none";
+
+        return;
+
+    }
+
+
+    pagination.style.display =
+        "flex";
+
+
+    /* PRÉCÉDENT */
+
+    const previous =
+        document.createElement("button");
+
+    previous.className =
+        "news-page-btn";
+
+    previous.innerHTML =
+        "‹";
+
+    previous.disabled =
+        currentNewsPage === 1;
+
+
+    previous.onclick = () => {
+
+        if (currentNewsPage > 1) {
+
+            currentNewsPage--;
+
+            renderNews();
+
+            scrollToNews();
+
+        }
+
+    };
+
+
+    pagination.appendChild(previous);
+
+
+    /* NUMÉROS */
+
+    for (
+        let page = 1;
+        page <= totalPages;
+        page++
+    ) {
+
+        const button =
+            document.createElement("button");
+
+
+        button.className =
+            "news-page-btn";
+
+
+        button.textContent =
+            page;
+
+
+        if (
+            page === currentNewsPage
+        ) {
+
+            button.classList.add(
+                "active"
+            );
+
+        }
+
+
+        button.onclick = () => {
+
+            currentNewsPage =
+                page;
+
+            renderNews();
+
+            scrollToNews();
+
+        };
+
+
+        pagination.appendChild(button);
+
+    }
+
+
+    /* SUIVANT */
+
+    const next =
+        document.createElement("button");
+
+
+    next.className =
+        "news-page-btn";
+
+
+    next.innerHTML =
+        "›";
+
+
+    next.disabled =
+        currentNewsPage === totalPages;
+
+
+    next.onclick = () => {
+
+        if (
+            currentNewsPage < totalPages
+        ) {
+
+            currentNewsPage++;
+
+            renderNews();
+
+            scrollToNews();
+
+        }
+
+    };
+
+
+    pagination.appendChild(next);
+
+}
+
+
+/* ==========================================
+   SCROLL VERS LES ACTUALITÉS
+========================================== */
+
+function scrollToNews() {
+
+    const container =
+        document.getElementById(
+            "newsContainer"
+        );
+
+    if (!container) return;
+
+
+    container.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+
+}
+
+
+/* ==========================================
+   INITIALISATION
+========================================== */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+
+        renderNews();
+
+    }
+);
+
+3. CSS
+
+.news-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 20px;
+
+}
+
+
+.news-card {
+
+    background: white;
+
+    border-radius: 12px;
+
+    overflow: hidden;
+
+    border: 1px solid #e5e7eb;
+
+    transition:
+        transform .25s ease,
+        box-shadow .25s ease;
+}
+
+
+.news-card:hover {
+
+    transform:
+        translateY(-3px);
+
+    box-shadow:
+        0 8px 25px rgba(0,0,0,.08);
+}
+
+
+.news-image {
+
+    width: 100%;
+
+    height: 190px;
+
+    overflow: hidden;
+}
+
+
+.news-image img {
+
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: cover;
+
+}
+
+
+.news-body {
+
+    padding: 18px;
+}
+
+
+.news-date {
+
+    font-size: 13px;
+
+    color: #667085;
+
+    margin-bottom: 8px;
+}
+
+
+.news-body h2 {
+
+    font-size: 19px;
+
+    line-height: 1.4;
+
+    margin: 0 0 10px;
+}
+
+
+.news-description {
+
+    display: -webkit-box;
+
+    -webkit-box-orient: vertical;
+
+    -webkit-line-clamp: 3;
+
+    overflow: hidden;
+
+    line-height: 1.6;
+
+    color: #667085;
+
+    margin-bottom: 15px;
+}
+
+
+.news-read-more {
+
+    text-decoration: none;
+
+    font-weight: 600;
+
+    display: inline-flex;
+
+    gap: 7px;
+
+    align-items: center;
+}
+
+
+/* ==========================================
+   PAGINATION
+========================================== */
+
+.news-pagination {
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    gap: 6px;
+
+    margin-top: 30px;
+
+    padding-bottom: 30px;
+}
+
+
+.news-page-btn {
+
+    width: 38px;
+
+    height: 38px;
+
+    border: 1px solid #d0d5dd;
+
+    background: white;
+
+    border-radius: 7px;
+
+    cursor: pointer;
+
+    font-size: 14px;
+}
+
+
+.news-page-btn:hover:not(:disabled) {
+
+    border-color: #1677ff;
+
+}
+
+
+.news-page-btn.active {
+
+    background: #1677ff;
+
+    color: white;
+
+    border-color: #1677ff;
+}
+
+
+.news-page-btn:disabled {
+
+    opacity: .4;
+
+    cursor: not-allowed;
+}
+
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media (max-width: 800px) {
+
+    .news-grid {
+
+        grid-template-columns: 1fr;
+
+        gap: 16px;
+
+    }
+
+
+    .news-image {
+
+        height: 210px;
+
+    }
+
+
+    .news-pagination {
+
+        margin-top: 25px;
+
     }
 
 }
 
-Votre article.html doit avoir ces IDs
+Exemple avec 14 actualités
 
-<h1 id="articleTitle"></h1>
+La pagination donnera :
 
-<div id="articleDescription"></div>
+Page 1
+1 2 3 4 5 6
 
-<div id="articleDate"></div>
+Page 2
+7 8 9 10 11 12
 
-<img
-    id="articleImage"
-    src=""
-    alt=""
->
+Page 3
+13 14
 
-<div id="articleDetail"></div>
-
-<script src="js/article.js"></script>
-
-Et depuis la page d'accueil
-
-Chaque actualité doit envoyer son propre ID :
-
-<a href="article.html?id=1">
-    Lire la suite →
-</a>
-
-ou :
-
-<a href="article.html?id=2">
-    Lire la suite →
-</a>
-
-Ainsi, un seul article.html suffit pour toutes les actualités.
-
-Par exemple :
-
-article.html?id=1
-        ↓
-articles[0]
-        ↓
-Titre + Description + Date + Image + Paragraphes
-
-et :
-
-article.html?id=2
-        ↓
-articles[1]
-        ↓
-Titre + Description + Date + Image + Paragraphes
-
-Cette structure sera également facile à remplacer plus tard par des données provenant de votre API/.NET ou Oracle, sans changer la structure de la page.
+Donc 6 articles exactement par page, et la dernière page affiche uniquement les articles restants.

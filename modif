@@ -1,226 +1,162 @@
-Oui. Il faut corriger deux choses :
+Oui, je comprends maintenant. Vous voulez une animation synchronisée :
 
-1. Quand le viewer s'ouvre, le documents-container ne doit pas brutalement changer de largeur. On va utiliser une transition sur les colonnes et surtout une grille plus stable.
+Le viewer se ferme progressivement vers la droite.
+
+En même temps, la zone des documents récupère progressivement sa largeur.
+
+Les cartes PDF se réorganisent pendant ce même mouvement.
+
+La pagination reste fixée en bas de la zone documents.
+
+Si plusieurs pages existent, elle reste toujours visible, même pendant l'ouverture/fermeture du viewer.
 
 
-2. La pagination doit toujours rester visible, même lorsqu'il n'y a qu'une seule page.
+Le point important est de ne pas attendre setTimeout() pour modifier le layout. C'est justement cela qui donne l'impression que les deux mouvements ne sont pas synchronisés.
+
+1. Structure
+
+Votre layout doit être :
+
+<div class="layout" id="mainLayout">
+
+    <aside class="sidenav">
+        ...
+    </aside>
+
+    <main class="content">
+        ...
+        
+        <div
+            class="documents"
+            id="documentsContainer"
+        ></div>
+
+        <div
+            class="pagination"
+            id="pagination"
+        ></div>
+
+    </main>
+
+    <section
+        class="viewer"
+        id="pdfViewerPanel"
+    >
+        ...
+    </section>
+
+</div>
 
 
+---
 
-Je vous conseille aussi de garder la pagination en bas du conteneur des documents, plutôt que de la faire disparaître.
+2. CSS du layout
 
-1. Remplacez le CSS du layout
+Remplacez les anciennes règles par celles-ci :
 
 .layout {
     display: grid;
 
-    grid-template-columns: 250px minmax(0, 1fr) 0fr;
+    grid-template-columns:
+        250px
+        minmax(0, 1fr)
+        0px;
 
     height: calc(100vh - 76px);
 
     overflow: hidden;
 
     transition:
-        grid-template-columns 0.4s cubic-bezier(.4, 0, .2, 1);
+        grid-template-columns
+        400ms
+        cubic-bezier(.4, 0, .2, 1);
 }
 
 
-/* Viewer ouvert */
+/* ================================
+   VIEWER OUVERT
+================================ */
 
 .layout.viewer-open {
 
     grid-template-columns:
         250px
         minmax(0, 1fr)
-        minmax(380px, 48%);
+        minmax(400px, 48%);
+
 }
 
 
-/* =====================================================
-   CONTENT
-===================================================== */
+/* ================================
+   ZONE DOCUMENTS
+================================ */
 
 .content {
 
     min-width: 0;
 
-    overflow-y: auto;
+    display: flex;
 
-    padding: 26px;
+    flex-direction: column;
 
-    /*
-       Important :
-       empêche le contenu de provoquer
-       un changement brutal de largeur
-    */
+    overflow: hidden;
 
-    overflow-x: hidden;
+    padding: 24px;
+
 }
 
 
-/* =====================================================
-   DOCUMENTS
-===================================================== */
+/* ================================
+   CONTENEUR PDF
+================================ */
 
 .documents {
+
+    flex: 1;
+
+    min-height: 0;
+
+    overflow-y: auto;
+
+    overflow-x: hidden;
 
     display: grid;
 
     grid-template-columns:
-        repeat(3, minmax(0, 1fr));
+        repeat(
+            3,
+            minmax(0, 1fr)
+        );
+
+    align-content: start;
 
     gap: 16px;
 
-    /*
-       Transition douce lors du changement
-       de largeur
-    */
-
-    transition:
-        grid-template-columns 0.4s ease;
 }
 
 
-/* Lorsque le viewer est ouvert,
-   on réduit progressivement le nombre
-   de colonnes */
+/* Quand le viewer est ouvert */
 
 .layout.viewer-open .documents {
 
     grid-template-columns:
-        repeat(2, minmax(0, 1fr));
-
-}
-
-Ainsi, au lieu d'avoir :
-
-3 colonnes
-    ↓
-BRUSQUE
-    ↓
-2 colonnes
-
-vous aurez :
-
-3 colonnes
-      ↘
-        2 colonnes
-          ↘
-        animation fluide
-
-
----
-
-2. Pagination toujours affichée
-
-Votre ancien code contient probablement ceci :
-
-if (totalPages <= 1) {
-    return;
-}
-
-Supprimez cette partie.
-
-Remplacez complètement renderPagination() par :
-
-function renderPagination(totalPages) {
-
-    const pagination =
-        document.getElementById("pagination");
-
-
-    pagination.innerHTML = "";
-
-
-    /*
-       Toujours afficher la pagination
-    */
-
-    if (totalPages < 1) {
-        totalPages = 1;
-    }
-
-
-    /* ============================
-       PRÉCÉDENT
-    ============================ */
-
-    const previous =
-        createPageButton(
-            "‹",
-            currentPage - 1
+        repeat(
+            2,
+            minmax(0, 1fr)
         );
-
-
-    previous.disabled =
-        currentPage <= 1;
-
-
-    pagination.appendChild(
-        previous
-    );
-
-
-    /* ============================
-       NUMÉROS
-    ============================ */
-
-    for (
-        let i = 1;
-        i <= totalPages;
-        i++
-    ) {
-
-        const button =
-            createPageButton(
-                i,
-                i
-            );
-
-
-        if (i === currentPage) {
-
-            button.classList.add(
-                "active"
-            );
-
-        }
-
-
-        pagination.appendChild(
-            button
-        );
-
-    }
-
-
-    /* ============================
-       SUIVANT
-    ============================ */
-
-    const next =
-        createPageButton(
-            "›",
-            currentPage + 1
-        );
-
-
-    next.disabled =
-        currentPage >= totalPages;
-
-
-    pagination.appendChild(
-        next
-    );
 
 }
 
 
----
-
-3. Améliorez le CSS de la pagination
+/* ================================
+   PAGINATION
+================================ */
 
 .pagination {
+
+    flex-shrink: 0;
+
+    min-height: 52px;
 
     display: flex;
 
@@ -230,155 +166,286 @@ function renderPagination(totalPages) {
 
     gap: 6px;
 
-    min-height: 52px;
+    padding-top: 12px;
 
-    margin-top: 20px;
+}
 
-    padding: 8px 0 25px;
+Pourquoi cette version est plus fluide ?
 
-    /*
-       La pagination reste dans le flux
-    */
+Parce que :
 
+.layout
+
+change sa largeur en même temps que :
+
+.documents
+
+change son nombre de colonnes.
+
+Il n'y a plus :
+
+fermer viewer
+      ↓
+attendre 350 ms
+      ↓
+modifier documents
+
+Mais :
+
+┌─────────────── ANIMATION 400ms ────────────────┐
+
+Viewer        ← fermeture
+Documents     → récupération de largeur
+Cartes        → réorganisation
+
+└─────────────────────────────────────────────────┘
+
+
+---
+
+3. Pagination toujours en bas
+
+La pagination ne doit surtout pas être dans .documents.
+
+Elle doit être après le conteneur :
+
+<div
+    class="documents"
+    id="documentsContainer"
+></div>
+
+<div
+    class="pagination"
+    id="pagination"
+></div>
+
+Grâce à :
+
+.content {
+    display: flex;
+    flex-direction: column;
+}
+
+.documents {
+    flex: 1;
+}
+
+.pagination {
     flex-shrink: 0;
 }
 
+elle reste toujours en bas.
 
-.page-btn {
+Avec 20 documents :
 
-    width: 36px;
+┌─────────────────────────────┐
+│ PDF │ PDF │ PDF             │
+│ PDF │ PDF │ PDF             │
+│ PDF │ PDF │ PDF             │
+│ PDF │ PDF │ PDF             │
+│                             │
+│                             │
+├─────────────────────────────┤
+│        ‹ 1 2 3 4 ›          │
+└─────────────────────────────┘
 
-    height: 36px;
+Avec 2 documents :
 
-    border: 1px solid #dfe4ea;
-
-    background: white;
-
-    color: #344054;
-
-    border-radius: 7px;
-
-    cursor: pointer;
-
-    font-size: 13px;
-
-    transition:
-        background .2s ease,
-        color .2s ease,
-        border-color .2s ease;
-}
-
-
-.page-btn:hover:not(:disabled) {
-
-    border-color: #1677ff;
-
-    color: #1677ff;
-
-}
-
-
-.page-btn.active {
-
-    background: #1677ff;
-
-    color: white;
-
-    border-color: #1677ff;
-}
-
-
-.page-btn:disabled {
-
-    opacity: .4;
-
-    cursor: not-allowed;
-
-}
-
-Même avec :
-
-1 document
-
-vous aurez :
-
-‹    1    ›
-
-avec ‹ et › désactivés.
+┌─────────────────────────────┐
+│                             │
+│ PDF │ PDF                   │
+│                             │
+│                             │
+│                             │
+│                             │
+├─────────────────────────────┤
+│          ‹ 1 ›              │
+└─────────────────────────────┘
 
 
 ---
 
-4. Pour le déplacement des cartes, je recommande cette modification
-
-Le vrai problème est que vos cartes passent de :
-
-┌────┐ ┌────┐ ┌────┐
-│    │ │    │ │    │
-└────┘ └────┘ └────┘
-
-à :
-
-┌──────┐ ┌──────┐
-│      │ │      │
-└──────┘ └──────┘
-
-pendant que la largeur du contenu change.
-
-Pour éviter un effet désagréable, ajoutez :
-
-.document-card {
-
-    min-width: 0;
-
-    transform: translateZ(0);
-
-    transition:
-        transform .25s ease,
-        box-shadow .25s ease;
-}
-
-Et :
-
-.document-card:hover {
-
-    transform: translateY(-2px);
-
-}
-
-
----
-
-5. Très important : transition du viewer
+4. openViewer()
 
 Utilisez cette version :
 
-.viewer {
+function openViewer(id) {
 
-    background: #17202d;
+    const selectedFile =
+        documents.find(
+            file => file.id === id
+        );
+
+    if (!selectedFile) {
+        return;
+    }
+
+
+    /* Mobile */
+
+    if (
+        window.matchMedia(
+            "(max-width: 800px)"
+        ).matches
+    ) {
+
+        window.open(
+            selectedFile.url,
+            "_blank"
+        );
+
+        return;
+    }
+
+
+    currentDocument =
+        selectedFile;
+
+
+    const layout =
+        document.getElementById(
+            "mainLayout"
+        );
+
+    const viewer =
+        document.getElementById(
+            "pdfViewerPanel"
+        );
+
+    const pdf =
+        document.getElementById(
+            "pdfViewer"
+        );
+
+    const title =
+        document.getElementById(
+            "viewerTitle"
+        );
+
+
+    title.textContent =
+        selectedFile.name;
+
+
+    pdf.src =
+        selectedFile.url +
+        "#toolbar=1&navpanes=1";
+
+
+    /*
+       IMPORTANT :
+
+       Les deux classes sont ajoutées
+       immédiatement.
+
+       Donc le déplacement du contenu
+       et l'ouverture du viewer commencent
+       exactement au même moment.
+    */
+
+    layout.classList.add(
+        "viewer-open"
+    );
+
+    viewer.classList.add(
+        "open"
+    );
+
+}
+
+
+---
+
+5. closeViewer()
+
+C'est ici que nous corrigeons votre problème.
+
+Ne mettez plus de setTimeout() pour fermer le layout.
+
+function closeViewer() {
+
+    const layout =
+        document.getElementById(
+            "mainLayout"
+        );
+
+    const viewer =
+        document.getElementById(
+            "pdfViewerPanel"
+        );
+
+    const pdf =
+        document.getElementById(
+            "pdfViewer"
+        );
+
+
+    /*
+       IMPORTANT :
+
+       Les deux commencent leur animation
+       exactement au même moment.
+    */
+
+    viewer.classList.remove(
+        "open"
+    );
+
+    layout.classList.remove(
+        "viewer-open"
+    );
+
+
+    /*
+       On attend uniquement la fin
+       visuelle de l'animation pour
+       libérer le PDF.
+    */
+
+    setTimeout(() => {
+
+        pdf.src = "";
+
+        currentDocument = null;
+
+    }, 400);
+
+}
+
+
+---
+
+6. CSS du viewer
+
+.viewer {
 
     min-width: 0;
 
     min-height: 0;
 
+    overflow: hidden;
+
     display: flex;
 
     flex-direction: column;
 
-    overflow: hidden;
+    background: #17202d;
 
     opacity: 0;
 
     visibility: hidden;
 
-    transform: translateX(30px);
+    transform:
+        translateX(30px);
 
     pointer-events: none;
 
     transition:
-        opacity .3s ease,
-        transform .4s cubic-bezier(.4,0,.2,1),
-        visibility 0s linear .4s;
+        opacity 400ms ease,
+        transform 400ms
+        cubic-bezier(.4, 0, .2, 1),
+        visibility 0s linear 400ms;
+
 }
 
 
@@ -388,47 +455,91 @@ Utilisez cette version :
 
     visibility: visible;
 
-    transform: translateX(0);
+    transform:
+        translateX(0);
 
     pointer-events: auto;
 
     transition:
-        opacity .3s ease,
-        transform .4s cubic-bezier(.4,0,.2,1),
+        opacity 400ms ease,
+        transform 400ms
+        cubic-bezier(.4, 0, .2, 1),
         visibility 0s linear 0s;
+
 }
+
+Les deux animations utilisent maintenant exactement :
+
+400ms
+cubic-bezier(.4, 0, .2, 1)
+
+Donc :
+
+Viewer :
+
+████████████████→
+
+Documents :
+
+←████████████████
+
+se produisent simultanément.
 
 
 ---
 
-Résultat souhaité
+7. Sur mobile
 
-Viewer fermé
+On conserve votre comportement :
 
-┌────────────┬─────────────────────────────────────────┐
-│            │                                         │
-│ SIDENAV    │          DOCUMENTS                      │
-│            │                                         │
-│ 📁 Admin   │  ┌──────┐ ┌──────┐ ┌──────┐             │
-│   (12)     │  │ PDF  │ │ PDF  │ │ PDF  │             │
-│            │  └──────┘ └──────┘ └──────┘             │
-│ 📁 RH      │                                         │
-│   (8)      │             ‹ 1 2 3 4 ›                 │
-└────────────┴─────────────────────────────────────────┘
+@media (max-width: 800px) {
 
-Clic sur PDF
+    .layout {
 
-┌───────────┬───────────────────┬──────────────────────┐
-│           │                   │ Rapport_2025.pdf  ×  │
-│ SIDENAV   │    DOCUMENTS     │──────────────────────│
-│           │                   │                      │
-│ 📁 Admin  │  ┌──────┐ ┌────┐ │        PDF           │
-│           │  │ PDF  │ │PDF │ │                      │
-│ 📁 RH     │  └──────┘ └────┘ │                      │
-│           │                   │                      │
-│           │     ‹ 1 2 3 ›     │                      │
-└───────────┴───────────────────┴──────────────────────┘
+        display: block;
 
-Le changement de largeur sera progressif, et la pagination restera toujours présente.
+        height: auto;
 
-Une dernière amélioration que je recommande pour votre portail : au lieu de passer automatiquement de 3 à 2 colonnes quand le viewer s'ouvre, on peut faire en sorte que les cartes conservent exactement leur taille et que seul le nombre de cartes visibles change. Cela donnera une animation encore plus naturelle.
+        overflow: visible;
+
+    }
+
+    .viewer {
+
+        display: none;
+
+    }
+
+}
+
+et :
+
+if (
+    window.matchMedia(
+        "(max-width: 800px)"
+    ).matches
+) {
+
+    window.open(
+        selectedFile.url,
+        "_blank"
+    );
+
+    return;
+}
+
+Donc :
+
+PC :
+
+> PDF → viewer animé ↔ documents animés
+
+
+
+Mobile :
+
+> PDF → nouvel onglet directement
+
+
+
+C'est cette architecture que je garderais pour la version finale de votre portail : la pagination reste fixe en bas et le viewer + la zone des documents évoluent ensemble pendant les 400 ms de l'animation.

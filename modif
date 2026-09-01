@@ -807,3 +807,198 @@ globals.css = uniquement le style général.
 *.module.css = style de chaque composant.
 
 C'est cette organisation qui sera la plus propre lorsque nous brancherons ensuite Next.js → .NET Core API → Oracle 19c.
+
+
+------
+
+Oui. Pour votre portail, je recommande fortement de créer un Layout principal Next.js dès maintenant. Cela évitera de répéter le Header, la navigation et la structure générale dans Accueil, Actualités et Documents.
+
+Architecture
+
+app/
+├── layout.tsx          ← Layout principal
+├── globals.css
+├── page.tsx            ← Accueil
+│
+├── actualites/
+│   ├── page.tsx
+│   └── [id]/
+│       └── page.tsx
+│
+└── documents/
+    └── page.tsx
+
+components/
+└── layout/
+    ├── Header.tsx
+    ├── Header.module.css
+    ├── Sidebar.tsx
+    └── Sidebar.module.css
+
+app/layout.tsx
+
+Je partirais sur ceci :
+
+import type { Metadata } from "next";
+
+import "./globals.css";
+
+import Header from "@/components/layout/Header";
+import Sidebar from "@/components/layout/Sidebar";
+
+
+export const metadata: Metadata = {
+    title: "Portail Entreprise",
+    description: "Portail d'information de l'entreprise",
+};
+
+
+export default function RootLayout({
+    children,
+}: Readonly<{
+    children: React.ReactNode;
+}>) {
+
+    return (
+
+        <html lang="fr">
+
+            <body>
+
+                <div className="app-layout">
+
+                    <Header />
+
+                    <div className="app-body">
+
+                        <Sidebar />
+
+                        <main className="app-content">
+
+                            {children}
+
+                        </main>
+
+                    </div>
+
+                </div>
+
+            </body>
+
+        </html>
+
+    );
+}
+
+Résultat
+
+┌──────────────────────────────────────────────────────────┐
+│                        HEADER                            │
+│ Logo       Accueil  Actualités  Documents       Avatar  │
+├────────────┬─────────────────────────────────────────────┤
+│            │                                             │
+│ SIDEBAR    │                                             │
+│            │              PAGE ACTUELLE                  │
+│ 🏠 Accueil │                                             │
+│ 📰 Actual. │              {children}                     │
+│ 📁 Docs    │                                             │
+│            │                                             │
+│            │                                             │
+└────────────┴─────────────────────────────────────────────┘
+
+Le point important est :
+
+{children}
+
+C'est ici que Next.js injecte automatiquement la page courante.
+
+Par exemple :
+
+/                 → app/page.tsx
+/actualites       → app/actualites/page.tsx
+/actualites/1     → app/actualites/[id]/page.tsx
+/documents        → app/documents/page.tsx
+
+CSS global
+
+Dans app/globals.css :
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    font-family: Arial, sans-serif;
+
+    background: #f5f7fa;
+
+    color: #17202d;
+}
+
+
+.app-layout {
+    width: 100%;
+    height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+
+    overflow: hidden;
+}
+
+
+.app-body {
+    flex: 1;
+
+    min-height: 0;
+
+    display: flex;
+}
+
+
+.app-content {
+    flex: 1;
+
+    min-width: 0;
+    min-height: 0;
+
+    overflow: auto;
+}
+
+Pourquoi je propose ce Layout
+
+Cela nous permet de conserver une cohérence totale entre vos pages :
+
+Élément	Layout
+
+Header	✅
+Menu principal	✅
+Sidebar	✅
+Avatar	✅
+Responsive	✅
+Contenu dynamique	{children}
+Actualités	page
+Article	page
+Documents	page
+
+
+Et surtout, votre page Documents peut garder son propre layout interne avec vos noms actuels :
+
+document-Layout
+docs-sidebar
+docs-content
+docs-viewer
+docs-pagination
+
+Le Layout global s'occupe uniquement du portail, tandis que documents/page.tsx s'occupe de l'interface Documents.
+
+Je recommande donc cette séparation : Layout global → Page → Composants spécialisés.

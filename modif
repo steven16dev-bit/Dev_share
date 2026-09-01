@@ -1,70 +1,665 @@
-Oui. Pour la page Actualités, on peut reprendre exactement le principe de la page Documents :
+Oui. Pour migrer votre portail HTML/CSS/JavaScript vers Next.js + .NET Core API, je vous conseille de procéder progressivement.
 
-Pagination toujours en bas de la zone principale.
+Pour la première étape, on ne connecte pas encore l'API. On transforme votre portail actuel en Next.js avec des objets TypeScript déclarés localement. Ensuite, nous remplacerons ces objets par les appels à l'API .NET.
 
-La zone des articles prend l'espace disponible.
+1. Architecture cible
 
-2 colonnes × 2 lignes visibles → donc 4 articles affichés à la fois.
+Next.js
+│
+├── Accueil
+│   └── Actualités
+│
+├── Actualités
+│   ├── Liste
+│   └── Article
+│
+└── Documents
+    ├── Dossiers
+    ├── Sous-dossiers
+    └── PDF Viewer
+          │
+          ▼
+       .NET Core API
+          │
+          ▼
+       Oracle 19c
 
-La pagination permet de passer aux autres articles.
+Pour commencer :
 
-On conserve votre limite de 6 articles par page : dans ce cas, les 6 articles sont répartis sur 2 colonnes, avec 3 lignes. Si vous voulez strictement 2 lignes × 2 colonnes, il faut passer à 4 articles par page.
+Next.js
+   │
+   └── données locales TypeScript
+
+Puis plus tard :
+
+Next.js
+   │
+   │ HTTP / Axios ou fetch
+   ▼
+.NET Core API
+   │
+   ▼
+Oracle 19c
 
 
-Je vous recommande 4 articles par page pour correspondre exactement à votre demande visuelle.
+---
 
-HTML
+2. Structure Next.js
 
-<main class="news-content">
+Je partirais sur cette structure :
 
-    <div class="news-header">
-        <h1 class="news-page-title">
-            Actualités
-        </h1>
-    </div>
+portal/
+│
+├── app/
+│   │
+│   ├── page.tsx
+│   │
+│   ├── actualites/
+│   │   ├── page.tsx
+│   │   └── [id]/
+│   │       └── page.tsx
+│   │
+│   └── documents/
+│       └── page.tsx
+│
+├── components/
+│   │
+│   ├── layout/
+│   │   ├── Header.tsx
+│   │   └── Navigation.tsx
+│   │
+│   ├── news/
+│   │   ├── NewsCard.tsx
+│   │   ├── NewsGrid.tsx
+│   │   └── NewsPagination.tsx
+│   │
+│   └── documents/
+│       ├── DocumentsSidebar.tsx
+│       ├── DocumentsGrid.tsx
+│       ├── DocumentsPagination.tsx
+│       └── DocumentsViewer.tsx
+│
+├── data/
+│   ├── news.ts
+│   └── documents.ts
+│
+├── types/
+│   ├── news.ts
+│   └── documents.ts
+│
+├── public/
+│   ├── images/
+│   └── pdf/
+│
+└── package.json
 
-    <div
-        class="news-grid"
-        id="newsContainer"
-    ></div>
 
-    <div
-        class="news-pagination"
-        id="newsPagination"
-    ></div>
+---
 
-</main>
+3. Les objets Actualités
 
-CSS
+Créez :
 
-/* ==========================================
-   ZONE ACTUALITÉS
-========================================== */
+types/news.ts
+
+export interface NewsArticle {
+    id: number;
+    title: string;
+    description: string;
+    date: string;
+    image: string;
+    paragraphs: string[];
+}
+
+Puis :
+
+data/news.ts
+
+import { NewsArticle } from "@/types/news";
+
+export const newsArticles: NewsArticle[] = [
+
+    {
+        id: 1,
+
+        title:
+            "Nouveau projet stratégique de l'entreprise",
+
+        description:
+            "L'entreprise annonce le lancement d'un nouveau projet stratégique visant à améliorer ses performances et la qualité de ses services.",
+
+        date:
+            "31 août 2026",
+
+        image:
+            "/images/news-01.jpg",
+
+        paragraphs: [
+
+            "L'entreprise annonce le lancement d'un nouveau projet stratégique. Cette initiative s'inscrit dans le cadre de sa démarche d'amélioration continue.",
+
+            "Le projet permettra notamment d'améliorer l'organisation des activités et de renforcer la qualité des services proposés.",
+
+            "Plusieurs directions participeront à la mise en œuvre de ce projet au cours des prochains mois."
+
+        ]
+    },
+
+
+    {
+        id: 2,
+
+        title:
+            "Nouvelle procédure interne",
+
+        description:
+            "Une nouvelle procédure interne entre en vigueur afin d'améliorer l'organisation et le traitement des opérations.",
+
+        date:
+            "28 août 2026",
+
+        image:
+            "/images/news-02.jpg",
+
+        paragraphs: [
+
+            "Une nouvelle procédure interne entre en vigueur à partir du 28 août 2026.",
+
+            "Cette procédure concerne l'ensemble des directions et services concernés par le processus.",
+
+            "Les responsables des différentes structures sont invités à prendre connaissance des nouvelles dispositions."
+
+        ]
+    }
+
+];
+
+
+---
+
+4. Page Actualités
+
+Votre ancien :
+
+news.html
+
+devient :
+
+app/actualites/page.tsx
+
+Et nous pouvons reprendre votre principe :
+
+2 colonnes × 2 lignes
+
+avec :
+
+4 articles par page.
+
+"use client";
+
+import { useState } from "react";
+
+import { newsArticles } from "@/data/news";
+
+import NewsCard from "@/components/news/NewsCard";
+import NewsPagination from "@/components/news/NewsPagination";
+
+
+const NEWS_PER_PAGE = 4;
+
+
+export default function ActualitesPage() {
+
+    const [currentPage, setCurrentPage] =
+        useState(1);
+
+
+    const totalPages =
+        Math.ceil(
+            newsArticles.length /
+            NEWS_PER_PAGE
+        );
+
+
+    const start =
+        (currentPage - 1) *
+        NEWS_PER_PAGE;
+
+
+    const currentArticles =
+        newsArticles.slice(
+            start,
+            start + NEWS_PER_PAGE
+        );
+
+
+    return (
+
+        <main className="news-content">
+
+            <h1 className="news-page-title">
+                Actualités
+            </h1>
+
+
+            <div className="news-grid">
+
+                {currentArticles.map(
+                    article => (
+
+                        <NewsCard
+                            key={article.id}
+                            article={article}
+                        />
+
+                    )
+                )}
+
+            </div>
+
+
+            <NewsPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+            />
+
+        </main>
+
+    );
+}
+
+
+---
+
+5. Carte Actualité
+
+components/news/NewsCard.tsx
+
+import Link from "next/link";
+
+import { NewsArticle } from "@/types/news";
+
+
+interface Props {
+    article: NewsArticle;
+}
+
+
+export default function NewsCard({
+    article
+}: Props) {
+
+    return (
+
+        <article className="news-card">
+
+            <div className="news-image">
+
+                <img
+                    src={article.image}
+                    alt={article.title}
+                />
+
+            </div>
+
+
+            <div className="news-body">
+
+                <div className="news-date">
+                    {article.date}
+                </div>
+
+
+                <h2>
+                    {article.title}
+                </h2>
+
+
+                <p className="news-description">
+                    {article.description}
+                </p>
+
+
+                <Link
+                    href={`/actualites/${article.id}`}
+                    className="news-read-more"
+                >
+                    Lire la suite
+                    <span>→</span>
+                </Link>
+
+            </div>
+
+        </article>
+
+    );
+}
+
+Vous n'avez donc plus besoin de :
+
+window.location
+
+ou :
+
+<a href="article.html?id=1">
+
+Next.js gère directement :
+
+/actualites/1
+/actualites/2
+/actualites/3
+
+
+---
+
+6. Page détail d'une actualité
+
+Votre ancien :
+
+article.html?id=1
+
+devient :
+
+/actualites/1
+
+avec :
+
+app/
+└── actualites/
+    └── [id]/
+        └── page.tsx
+
+Exemple :
+
+import { notFound } from "next/navigation";
+
+import { newsArticles } from "@/data/news";
+
+
+interface Props {
+    params: Promise<{
+        id: string;
+    }>;
+}
+
+
+export default async function ArticlePage({
+    params
+}: Props) {
+
+    const { id } = await params;
+
+
+    const article =
+        newsArticles.find(
+            item =>
+                item.id === Number(id)
+        );
+
+
+    if (!article) {
+        notFound();
+    }
+
+
+    return (
+
+        <main className="article-page">
+
+            <article className="article">
+
+                <h1 className="article-title">
+                    {article.title}
+                </h1>
+
+
+                <div className="article-date">
+                    {article.date}
+                </div>
+
+
+                <img
+                    className="article-image"
+                    src={article.image}
+                    alt={article.title}
+                />
+
+
+                <div className="article-description">
+                    {article.description}
+                </div>
+
+
+                <div className="article-detail">
+
+                    {article.paragraphs.map(
+                        (paragraph, index) => (
+
+                            <p key={index}>
+                                {paragraph}
+                            </p>
+
+                        )
+                    )}
+
+                </div>
+
+            </article>
+
+        </main>
+
+    );
+}
+
+Cela respecte exactement ce que nous avons défini :
+
+Titre
+   ↓
+Date
+   ↓
+Photo
+   ↓
+Description en gras
+   ↓
+Détail
+   ├── Paragraphe 1
+   ├── Paragraphe 2
+   └── Paragraphe 3
+
+
+---
+
+7. Pourquoi je recommande cette approche
+
+On commence avec :
+
+data/news.ts
+
+comme fausse base de données.
+
+Par exemple :
+
+newsArticles
+
+Puis, lorsque nous passons à .NET :
+
+Aujourd'hui
+
+newsArticles.map(...)
+
+Demain
+
+const response =
+    await fetch(
+        "http://serveur/api/news"
+    );
+
+const news =
+    await response.json();
+
+Et surtout, les composants NewsCard, NewsGrid, NewsPagination et la page article n'auront pratiquement pas besoin de changer, car ils travailleront toujours avec le même objet :
+
+NewsArticle
+
+
+---
+
+8. Pour les Documents
+
+Nous appliquerons exactement le même principe :
+
+export interface DocumentItem {
+    id: number;
+    name: string;
+    type: string;
+    year: number;
+    size: string;
+    pages: number;
+    url: string;
+    folderId: number;
+}
+
+et :
+
+export interface DocumentFolder {
+    id: number;
+    name: string;
+    parentId: number | null;
+}
+
+Ce qui permettra de conserver vos fonctionnalités actuelles :
+
+arborescence dossier/sous-dossier
+
+nombre de PDF par dossier
+
+recherche
+
+filtre type
+
+filtre année
+
+tri
+
+pagination
+
+aperçu PDF
+
+viewer ouvert/fermé avec animation
+
+ouverture dans un nouvel onglet sur mobile
+
+
+Je vous conseille donc de ne pas convertir tout le projet d'un seul coup. Nous pouvons commencer par migrer l'accueil + Actualités, avec les objets TypeScript locaux, puis migrer Documents en conservant exactement le comportement que nous avons construit, et seulement ensuite brancher le .NET Core API.
+
+
+------
+
+Pour votre migration vers Next.js, je vous conseille de séparer le CSS global du CSS propre à chaque fonctionnalité.
+
+Structure recommandée
+
+portal/
+│
+├── app/
+│   ├── globals.css          ← CSS global
+│   │
+│   ├── page.tsx
+│   │
+│   ├── actualites/
+│   │   ├── page.tsx
+│   │   └── [id]/
+│   │       └── page.tsx
+│   │
+│   └── documents/
+│       └── page.tsx
+│
+├── components/
+│   ├── layout/
+│   ├── news/
+│   └── documents/
+│
+├── data/
+├── types/
+└── public/
+
+1. app/globals.css
+
+Mettez ici le CSS commun à tout le portail :
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background: #f5f7fa;
+    color: #17202d;
+}
+
+button,
+input,
+select {
+    font: inherit;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+Et dans :
+
+app/layout.tsx
+
+vous devez avoir :
+
+import "./globals.css";
+
+export default function RootLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <html lang="fr">
+            <body>
+                {children}
+            </body>
+        </html>
+    );
+}
+
+
+---
+
+2. CSS Actualités
+
+Pour votre page Actualités, je recommande :
+
+styles/
+└── news.css
+
+avec :
 
 .news-content {
     height: 100%;
 
-    min-width: 0;
-
     display: flex;
-
     flex-direction: column;
-
-    overflow: hidden;
 
     padding: 24px;
 }
 
-
-/* ==========================================
-   GRID
-========================================== */
-
 .news-grid {
-
     flex: 1;
-
-    min-height: 0;
 
     display: grid;
 
@@ -75,21 +670,9 @@ CSS
         repeat(2, minmax(0, 1fr));
 
     gap: 20px;
-
-    overflow: hidden;
 }
 
-
-/* ==========================================
-   CARTE
-========================================== */
-
 .news-card {
-
-    min-width: 0;
-
-    min-height: 0;
-
     background: white;
 
     border: 1px solid #e5e7eb;
@@ -97,78 +680,9 @@ CSS
     border-radius: 12px;
 
     overflow: hidden;
-
-    display: flex;
-
-    flex-direction: column;
-
-    transition:
-        transform .25s ease,
-        box-shadow .25s ease;
 }
-
-
-.news-card:hover {
-
-    transform: translateY(-2px);
-
-    box-shadow:
-        0 8px 25px rgba(0,0,0,.08);
-}
-
-
-.news-image {
-
-    height: 180px;
-
-    flex-shrink: 0;
-
-    overflow: hidden;
-}
-
-
-.news-image img {
-
-    width: 100%;
-
-    height: 100%;
-
-    object-fit: cover;
-}
-
-
-.news-body {
-
-    flex: 1;
-
-    min-height: 0;
-
-    padding: 16px;
-
-    display: flex;
-
-    flex-direction: column;
-}
-
-
-.news-body h2 {
-
-    margin: 5px 0 8px;
-
-    font-size: 18px;
-
-    line-height: 1.4;
-}
-
 
 .news-description {
-
-    margin: 0;
-
-    color: #667085;
-
-    line-height: 1.5;
-
     display: -webkit-box;
 
     -webkit-box-orient: vertical;
@@ -178,291 +692,118 @@ CSS
     overflow: hidden;
 }
 
-
-.news-read-more {
-
-    margin-top: auto;
-
-    padding-top: 12px;
-
-    text-decoration: none;
-
-    font-weight: 600;
-}
-
-
-/* ==========================================
-   PAGINATION FIXE EN BAS
-========================================== */
-
 .news-pagination {
-
     flex-shrink: 0;
-
-    height: 58px;
 
     display: flex;
 
-    align-items: center;
-
     justify-content: center;
+
+    align-items: center;
 
     gap: 6px;
 
-    padding-top: 10px;
+    padding: 20px 0;
 }
 
+Mais attention
 
-.news-page-btn {
+Avec Next.js, vous ne pouvez pas importer directement un CSS global dans n'importe quel composant.
 
-    width: 38px;
+Donc ne faites pas :
 
-    height: 38px;
+import "./news.css";
 
-    border: 1px solid #d0d5dd;
+dans NewsCard.tsx si news.css est un CSS global.
 
+
+---
+
+3. La solution que je recommande pour votre projet
+
+Comme votre portail devient assez important, je vous recommande d'utiliser CSS Modules.
+
+Structure :
+
+components/
+│
+├── news/
+│   ├── NewsCard.tsx
+│   ├── NewsCard.module.css
+│   │
+│   ├── NewsPagination.tsx
+│   └── NewsPagination.module.css
+│
+└── documents/
+    ├── DocumentsSidebar.tsx
+    ├── DocumentsSidebar.module.css
+    │
+    ├── DocumentsViewer.tsx
+    └── DocumentsViewer.module.css
+
+Par exemple :
+
+NewsCard.tsx
+NewsCard.module.css
+
+Dans NewsCard.tsx :
+
+import styles from "./NewsCard.module.css";
+
+Puis :
+
+<article className={styles.newsCard}>
+
+et dans NewsCard.module.css :
+
+.newsCard {
     background: white;
-
-    border-radius: 7px;
-
-    cursor: pointer;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
-
-.news-page-btn.active {
-
-    background: #1677ff;
-
-    color: white;
-
-    border-color: #1677ff;
-}
-
-
-.news-page-btn:disabled {
-
-    opacity: .4;
-
-    cursor: not-allowed;
-}
-
-
-/* ==========================================
-   MOBILE
-========================================== */
-
-@media (max-width: 800px) {
-
-    .news-content {
-
-        height: auto;
-
-        overflow: visible;
-
-        padding: 16px;
-
-    }
-
-
-    .news-grid {
-
-        display: grid;
-
-        grid-template-columns: 1fr;
-
-        grid-template-rows: none;
-
-        gap: 16px;
-
-        overflow: visible;
-    }
-
-
-    .news-card {
-
-        min-height: 360px;
-
-    }
-
-
-    .news-pagination {
-
-        height: 60px;
-
-        padding-bottom: 10px;
-
-    }
-
-}
-
-JavaScript
-
-Modifiez simplement :
-
-const NEWS_PER_PAGE = 4;
-
-Puis votre pagination :
-
-function renderNewsPagination() {
-
-    const pagination =
-        document.getElementById(
-            "newsPagination"
-        );
-
-    if (!pagination) return;
-
-    pagination.innerHTML = "";
-
-    const totalPages =
-        Math.ceil(
-            articles.length /
-            NEWS_PER_PAGE
-        );
-
-
-    if (totalPages <= 1) {
-        pagination.style.visibility =
-            "hidden";
-
-        return;
-    }
-
-
-    pagination.style.visibility =
-        "visible";
-
-
-    /* Précédent */
-
-    const previous =
-        document.createElement("button");
-
-    previous.className =
-        "news-page-btn";
-
-    previous.textContent = "‹";
-
-    previous.disabled =
-        currentNewsPage === 1;
-
-    previous.onclick = () => {
-
-        if (currentNewsPage > 1) {
-
-            currentNewsPage--;
-
-            renderNews();
-
-        }
-
-    };
-
-    pagination.appendChild(previous);
-
-
-    /* Numéros */
-
-    for (
-        let page = 1;
-        page <= totalPages;
-        page++
-    ) {
-
-        const button =
-            document.createElement("button");
-
-        button.className =
-            "news-page-btn";
-
-        button.textContent =
-            page;
-
-
-        if (
-            page === currentNewsPage
-        ) {
-
-            button.classList.add(
-                "active"
-            );
-
-        }
-
-
-        button.onclick = () => {
-
-            currentNewsPage =
-                page;
-
-            renderNews();
-
-        };
-
-
-        pagination.appendChild(button);
-
-    }
-
-
-    /* Suivant */
-
-    const next =
-        document.createElement("button");
-
-    next.className =
-        "news-page-btn";
-
-    next.textContent = "›";
-
-    next.disabled =
-        currentNewsPage === totalPages;
-
-
-    next.onclick = () => {
-
-        if (
-            currentNewsPage <
-            totalPages
-        ) {
-
-            currentNewsPage++;
-
-            renderNews();
-
-        }
-
-    };
-
-
-    pagination.appendChild(next);
-}
-
-Résultat desktop
-
-┌─────────────────────────────────────────────────┐
-│                  ACTUALITÉS                     │
-│                                                 │
-│  ┌──────────────────┐  ┌──────────────────┐    │
-│  │      IMAGE       │  │      IMAGE       │    │
-│  │                  │  │                  │    │
-│  │ Article 1        │  │ Article 2        │    │
-│  │ Description...   │  │ Description...   │    │
-│  │ Lire la suite →  │  │ Lire la suite →  │    │
-│  └──────────────────┘  └──────────────────┘    │
-│                                                 │
-│  ┌──────────────────┐  ┌──────────────────┐    │
-│  │      IMAGE       │  │      IMAGE       │    │
-│  │                  │  │                  │    │
-│  │ Article 3        │  │ Article 4        │    │
-│  │ Description...   │  │ Description...   │    │
-│  │ Lire la suite →  │  │ Lire la suite →  │    │
-│  └──────────────────┘  └──────────────────┘    │
-│                                                 │
-├─────────────────────────────────────────────────┤
-│                  ‹  1  2  3  ›                  │
-└─────────────────────────────────────────────────┘
-
-La pagination est donc toujours au même endroit, indépendamment du nombre de textes dans les cartes.
-
-Point important : si vous tenez absolument à conserver 6 articles par page, on peut faire 2 colonnes × 3 lignes. Si votre priorité est réellement 2 × 2, alors NEWS_PER_PAGE = 4 est la configuration cohérente.
+Pour votre portail complet
+
+Je partirais donc sur :
+
+app/
+│
+├── globals.css
+│
+├── page.tsx
+│
+├── actualites/
+│   ├── page.tsx
+│   └── [id]/
+│       └── page.tsx
+│
+└── documents/
+    └── page.tsx
+
+
+components/
+│
+├── layout/
+│   ├── Header.tsx
+│   └── Header.module.css
+│
+├── news/
+│   ├── NewsCard.tsx
+│   ├── NewsCard.module.css
+│   ├── NewsPagination.tsx
+│   └── NewsPagination.module.css
+│
+└── documents/
+    ├── DocumentsSidebar.tsx
+    ├── DocumentsSidebar.module.css
+    ├── DocumentsGrid.tsx
+    ├── DocumentsGrid.module.css
+    ├── DocumentsPagination.tsx
+    ├── DocumentsPagination.module.css
+    ├── DocumentsViewer.tsx
+    └── DocumentsViewer.module.css
+
+globals.css = uniquement le style général.
+*.module.css = style de chaque composant.
+
+C'est cette organisation qui sera la plus propre lorsque nous brancherons ensuite Next.js → .NET Core API → Oracle 19c.

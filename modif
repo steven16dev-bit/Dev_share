@@ -1,48 +1,629 @@
-Oui — si tu veux supprimer le scroll du <body> uniquement sur une route, il faut agir directement sur document.body, pas seulement sur un <div>.
+Oui. Dans ce cas, il faut modifier la logique de stockage pour que le stockage physique reproduise exactement l'arborescence Oracle.
 
-Avec Next.js App Router, tu peux créer un composant client :
+Par exemple, si Oracle contient :
 
-"use client";
+Documents
+└── RH
+    └── Contrats
+        └── 2026
+            └── CDI
 
-import { useEffect } from "react";
+alors le serveur aura exactement :
 
-export default function DisableBodyScroll() {
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
+Storage/
+└── Documents/
+    └── RH/
+        └── Contrats/
+            └── 2026/
+                └── CDI/
+                    └── contrat_Jean.pdf
 
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+Et surtout, le fichier conserve son nom original.
 
-  return null;
+Si contrat_Jean.pdf existe déjà dans ce dossier :
+
+⚠️ Le fichier "contrat_Jean.pdf" existe déjà dans ce dossier.
+
+et le fichier existant n'est pas écrasé.
+
+
+---
+
+1. Nouvelle logique d'upload
+
+Utilisateur
+    │
+    │ Upload contrat.pdf
+    ▼
+Next.js
+    │
+    ▼
+.NET API
+    │
+    ├── Recherche le dossier Oracle
+    │
+    ├── Reconstruit :
+    │      Documents/RH/Contrats/2026
+    │
+    ├── Vérifie :
+    │      contrat.pdf existe ?
+    │
+    ├── OUI ──► HTTP 409
+    │             "Fichier déjà existant"
+    │
+    └── NON
+          │
+          ▼
+    crée le dossier physique
+          │
+          ▼
+    sauvegarde contrat.pdf
+          │
+          ▼
+    INSERT Oracle
+
+
+---
+
+2. Modifier FileService.cs
+
+Voici la partie importante.
+
+Déterminer le chemin physique correspondant au dossier Oracle
+
+private async Task<string> GetFolderPhysicalPathAsync(
+    long folderId)
+{
+    var folders = new List<(string Name, long? ParentId)>();
+
+    await using var connection = _factory.Create();
+
+    await connection.OpenAsync();
+
+    const string sql = """
+        SELECT
+            NAME,
+            PARENT_ID
+        FROM FILE_FOLDERS
+        START WITH ID = :folderId
+        CONNECT BY PRIOR PARENT_ID = ID
+        """;
+
+    await using var command =
+        new OracleCommand(sql, connection);
+
+    command.Parameters.Add(
+        "folderId",
+        OracleDbType.Int64
+    ).Value = folderId;
+
+    await using var reader =
+        await command.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        folders.Add(
+            (
+                reader.GetString(0),
+                reader.IsDBNull(1)
+                    ? null
+                    : reader.GetInt64(1)
+            )
+        );
+    }
+
+    if (folders.Count == 0)
+        throw new Exception(
+            "Dossier introuvable."
+        );
+
+    // Oracle retourne normalement :
+    // CDI -> 2026 -> Contrats -> RH -> Documents
+    //
+    // On inverse :
+    // Documents -> RH -> Contrats -> 2026 -> CDI
+
+    folders.Reverse();
+
+    var path = StorageRoot;
+
+    foreach (var folder in folders)
+    {
+        path = Path.Combine(
+            path,
+            SanitizeFolderName(folder.Name)
+        );
+    }
+
+    return path;
 }
 
-Puis dans le layout.tsx de la route concernée :
 
-import DisableBodyScroll from "@/components/DisableBodyScroll";
+---
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <>
-      <DisableBodyScroll />
-      {children}
-    </>
-  );
+3. Sécuriser les noms de dossiers
+
+On ne doit pas utiliser directement n'importe quel nom comme chemin Windows.
+
+Ajoute :
+
+private static string SanitizeFolderName(
+    string name)
+{
+    foreach (
+        var character
+        in Path.GetInvalidFileNameChars())
+    {
+        name = name.Replace(
+            character,
+            '_'
+        );
+    }
+
+    return name.Trim();
 }
 
-Résultat
 
-/dashboard
-   ↓
-body { overflow: hidden }  ← scroll désactivé
+---
 
-/autres-routes
-   ↓
-body { overflow: auto }    ← scroll normal
+4. Upload avec le même nom
 
-Le return dans useEffect est important : quand tu quittes la route, le scroll du body est automatiquement rétabli.
+Remplace ton ancienne méthode UploadAsync par :
+
+public async Task UploadAsync(
+    long folderId,
+    IFormFile file)
+{
+    if (file == null || file.Length == 0)
+        throw new Exception(
+            "Fichier vide."
+        );
+
+    // Vérifier le nom
+    var originalFileName =
+        Path.GetFileName(file.FileName);
+
+    if (string.IsNullOrWhiteSpace(
+        originalFileName))
+    {
+        throw new Exception(
+            "Nom de fichier invalide."
+        );
+    }
+
+    // Construire le chemin physique
+    var folderPath =
+        await GetFolderPhysicalPathAsync(
+            folderId
+        );
+
+    // Créer toute l'arborescence
+    Directory.CreateDirectory(
+        folderPath
+    );
+
+    // Même nom que le fichier original
+    var physicalPath =
+        Path.Combine(
+            folderPath,
+            originalFileName
+        );
+
+    // Vérification physique
+    if (System.IO.File.Exists(
+        physicalPath))
+    {
+        throw new FileAlreadyExistsException(
+            originalFileName
+        );
+    }
+
+    // Vérification Oracle
+    if (await FileExistsInDatabaseAsync(
+        folderId,
+        originalFileName))
+    {
+        throw new FileAlreadyExistsException(
+            originalFileName
+        );
+    }
+
+    try
+    {
+        // Écriture du fichier
+        await using (
+            var stream =
+                new FileStream(
+                    physicalPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None
+                ))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        await using var connection =
+            _factory.Create();
+
+        await connection.OpenAsync();
+
+        const string sql = """
+            INSERT INTO FILE_DOCUMENTS
+            (
+                FOLDER_ID,
+                FILE_NAME,
+                STORED_NAME,
+                FILE_PATH,
+                CONTENT_TYPE,
+                FILE_SIZE
+            )
+            VALUES
+            (
+                :folderId,
+                :fileName,
+                :storedName,
+                :filePath,
+                :contentType,
+                :fileSize
+            )
+            """;
+
+        await using var command =
+            new OracleCommand(
+                sql,
+                connection
+            );
+
+        command.Parameters.Add(
+            "folderId",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        command.Parameters.Add(
+            "fileName",
+            OracleDbType.Varchar2
+        ).Value = originalFileName;
+
+        // Maintenant STORED_NAME = nom original
+        command.Parameters.Add(
+            "storedName",
+            OracleDbType.Varchar2
+        ).Value = originalFileName;
+
+        command.Parameters.Add(
+            "filePath",
+            OracleDbType.Varchar2
+        ).Value = physicalPath;
+
+        command.Parameters.Add(
+            "contentType",
+            OracleDbType.Varchar2
+        ).Value =
+            file.ContentType ??
+            "application/octet-stream";
+
+        command.Parameters.Add(
+            "fileSize",
+            OracleDbType.Int64
+        ).Value = file.Length;
+
+        await command.ExecuteNonQueryAsync();
+    }
+    catch
+    {
+        // Si Oracle échoue après la création physique,
+        // on supprime le fichier créé.
+        if (System.IO.File.Exists(
+            physicalPath))
+        {
+            System.IO.File.Delete(
+                physicalPath
+            );
+        }
+
+        throw;
+    }
+}
+
+
+---
+
+5. Vérifier le fichier dans Oracle
+
+Ajoute dans FileService :
+
+private async Task<bool> FileExistsInDatabaseAsync(
+    long folderId,
+    string fileName)
+{
+    await using var connection =
+        _factory.Create();
+
+    await connection.OpenAsync();
+
+    const string sql = """
+        SELECT COUNT(*)
+        FROM FILE_DOCUMENTS
+        WHERE FOLDER_ID = :folderId
+        AND FILE_NAME = :fileName
+        """;
+
+    await using var command =
+        new OracleCommand(
+            sql,
+            connection
+        );
+
+    command.Parameters.Add(
+        "folderId",
+        OracleDbType.Int64
+    ).Value = folderId;
+
+    command.Parameters.Add(
+        "fileName",
+        OracleDbType.Varchar2
+    ).Value = fileName;
+
+    var result =
+        await command.ExecuteScalarAsync();
+
+    return Convert.ToInt32(result) > 0;
+}
+
+
+---
+
+6. Exception spécifique
+
+Crée :
+
+Exceptions/FileAlreadyExistsException.cs
+
+namespace DocumentManager.Api.Exceptions;
+
+public class FileAlreadyExistsException
+    : Exception
+{
+    public string FileName { get; }
+
+    public FileAlreadyExistsException(
+        string fileName)
+        : base(
+            $"Le fichier '{fileName}' existe déjà."
+        )
+    {
+        FileName = fileName;
+    }
+}
+
+
+---
+
+7. Retourner HTTP 409
+
+Dans FilesController :
+
+using DocumentManager.Api.Exceptions;
+
+Puis :
+
+[HttpPost("upload/{folderId}")]
+[RequestSizeLimit(524288000)]
+public async Task<IActionResult> Upload(
+    long folderId,
+    IFormFile file)
+{
+    if (file == null || file.Length == 0)
+    {
+        return BadRequest(new
+        {
+            message = "Fichier requis."
+        });
+    }
+
+    try
+    {
+        await _service.UploadAsync(
+            folderId,
+            file
+        );
+
+        return Ok(new
+        {
+            message =
+                "Fichier téléchargé avec succès."
+        });
+    }
+    catch (
+        FileAlreadyExistsException ex)
+    {
+        return Conflict(new
+        {
+            code = "FILE_ALREADY_EXISTS",
+            message =
+                $"Le fichier '{ex.FileName}' " +
+                "existe déjà dans ce dossier."
+        });
+    }
+}
+
+
+---
+
+8. Très important : empêcher les doublons Oracle
+
+Je te conseille fortement d'ajouter une contrainte unique :
+
+ALTER TABLE FILE_DOCUMENTS
+ADD CONSTRAINT UQ_FILE_FOLDER_NAME
+UNIQUE (
+    FOLDER_ID,
+    FILE_NAME
+);
+
+Ainsi, même si deux utilisateurs uploadent simultanément :
+
+contrat.pdf
+
+dans :
+
+Documents/RH/Contrats/2026
+
+Oracle empêchera le doublon.
+
+
+---
+
+9. Côté Next.js
+
+Il faut maintenant récupérer le 409.
+
+Dans api.ts :
+
+export async function uploadFile(
+  folderId: number,
+  file: File
+) {
+  const formData = new FormData()
+
+  formData.append("file", file)
+
+  const response = await fetch(
+    `${API}/files/upload/${folderId}`,
+    {
+      method: "POST",
+      body: formData
+    }
+  )
+
+  if (response.status === 409) {
+
+    const error =
+      await response.json()
+
+    throw new Error(
+      error.message
+    )
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      "Erreur pendant l'upload."
+    )
+  }
+
+  return response.json()
+}
+
+
+---
+
+10. Affichage du message
+
+Dans FileManager.tsx, au lieu de simplement :
+
+await uploadFile(
+    selectedFolder.id,
+    file
+)
+
+faire :
+
+async function handleUpload(
+  file: File
+) {
+    if (!selectedFolder)
+        return
+
+    try {
+
+        await uploadFile(
+            selectedFolder.id,
+            file
+        )
+
+        await loadFiles(
+            selectedFolder.id
+        )
+
+        alert(
+            "Fichier téléchargé avec succès."
+        )
+
+    } catch (error) {
+
+        const message =
+            error instanceof Error
+                ? error.message
+                : "Erreur pendant l'upload."
+
+        alert(message)
+    }
+}
+
+Ainsi, si :
+
+Documents
+└── RH
+    └── Contrats
+        └── 2026
+            └── contrat.pdf
+
+et que l'utilisateur essaye encore d'envoyer :
+
+contrat.pdf
+
+il aura :
+
+┌───────────────────────────────────────┐
+│ ⚠️  Fichier déjà existant             │
+│                                       │
+│ Le fichier "contrat.pdf" existe      │
+│ déjà dans ce dossier.                 │
+│                                       │
+│                       [ OK ]          │
+└───────────────────────────────────────┘
+
+
+---
+
+11. Résultat final
+
+Avec cette modification, ton système aura une correspondance 1:1 entre Oracle et le stockage physique :
+
+ORACLE
+│
+├── Documents
+│   ├── RH
+│   │   └── Contrats
+│   │       └── 2026
+│   │
+│   └── Finance
+│       └── Factures
+│
+└── Archives
+
+
+STORAGE
+│
+├── Documents
+│   ├── RH
+│   │   └── Contrats
+│   │       └── 2026
+│   │           ├── contrat_001.pdf
+│   │           └── contrat_002.pdf
+│   │
+│   └── Finance
+│       └── Factures
+│           └── facture_001.pdf
+│
+└── Archives
+
+Et surtout :
+
+Nom Oracle       = Nom dossier physique
+Nom fichier DB   = Nom fichier physique
+Emplacement DB   = Emplacement physique
+
+Je recommande aussi que le renommage et le déplacement d'un dossier dans Next.js déplacent/renomment réellement le dossier physique. Sinon Oracle et le stockage peuvent finir par ne plus être synchronisés.

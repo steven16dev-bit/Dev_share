@@ -1,339 +1,595 @@
-Oui. Voici une version adaptée à ton gestionnaire de fichiers Next.js 16 + TypeScript, sans dépendance supplémentaire.
+Oui. Dans ton architecture, le renommage d'un dossier doit être une opération atomique logique :
 
-L'idée est simple : à partir du selectedFolderId, on remonte les parentId jusqu'à la racine, puis on inverse le tableau.
+Avant
 
-1. components/Breadcrumb.tsx
+Storage/
+└── Documents/
+    └── RH/
+        └── Contrats/
+            └── 2026/
+                └── CDI/
+                    └── contrat.pdf
 
-"use client"
+Si tu renommes CDI → CDI_2026 :
 
-import type { Folder } from "@/lib/types"
+Après
 
-interface BreadcrumbProps {
-  folders: Folder[]
-  selectedFolderId: number | null
-  onNavigate: (folderId: number) => void
-}
+Storage/
+└── Documents/
+    └── RH/
+        └── Contrats/
+            └── 2026/
+                └── CDI_2026/
+                    └── contrat.pdf
 
-export default function Breadcrumb({
-  folders,
-  selectedFolderId,
-  onNavigate,
-}: BreadcrumbProps) {
+Et Oracle doit également être mis à jour.
 
-  // Construire le chemin complet
-  const buildPath = (): Folder[] => {
-    if (selectedFolderId === null) {
-      return []
+Le point important : les chemins des fichiers enfants doivent être recalculés, puisque le chemin physique du dossier parent a changé.
+
+1. Remplacer RenameAsync dans FolderService
+
+public async Task RenameAsync(
+    long folderId,
+    string newName)
+{
+    if (string.IsNullOrWhiteSpace(newName))
+        throw new Exception("Le nom du dossier est obligatoire.");
+
+    newName = newName.Trim();
+
+    // ==============================
+    // RÉCUPÉRER LE DOSSIER
+    // ==============================
+
+    Folder? folder = null;
+
+    await using (var connection = _factory.Create())
+    {
+        await connection.OpenAsync();
+
+        const string sql = """
+            SELECT
+                ID,
+                NAME,
+                PARENT_ID,
+                CREATED_AT,
+                UPDATED_AT
+            FROM FILE_FOLDERS
+            WHERE ID = :id
+            """;
+
+        await using var command =
+            new OracleCommand(sql, connection);
+
+        command.Parameters.Add(
+            "id",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync())
+        {
+            folder = new Folder
+            {
+                Id = reader.GetInt64(0),
+                Name = reader.GetString(1),
+                ParentId =
+                    reader.IsDBNull(2)
+                        ? null
+                        : reader.GetInt64(2),
+
+                CreatedAt = reader.GetDateTime(3),
+                UpdatedAt = reader.GetDateTime(4)
+            };
+        }
     }
 
-    const path: Folder[] = []
+    if (folder == null)
+        throw new Exception(
+            "Dossier introuvable."
+        );
 
-    let currentId: number | null = selectedFolderId
 
-    while (currentId !== null) {
-      const folder = folders.find(
-        f => f.id === currentId
-      )
+    // ==============================
+    // NETTOYER LE NOUVEAU NOM
+    // ==============================
 
-      if (!folder) {
-        break
-      }
+    var safeNewName =
+        SanitizeFolderName(newName);
 
-      path.push(folder)
-      currentId = folder.parentId
+    if (string.IsNullOrWhiteSpace(safeNewName))
+        throw new Exception(
+            "Nom de dossier invalide."
+        );
+
+
+    // ==============================
+    // VÉRIFIER LE DOUBLON
+    // ==============================
+
+    await using (var connection = _factory.Create())
+    {
+        await connection.OpenAsync();
+
+        const string sql = """
+            SELECT COUNT(*)
+            FROM FILE_FOLDERS
+            WHERE NVL(PARENT_ID, 0) = NVL(:parentId, 0)
+              AND NAME = :name
+              AND ID <> :id
+            """;
+
+        await using var command =
+            new OracleCommand(sql, connection);
+
+        command.Parameters.Add(
+            "parentId",
+            OracleDbType.Int64
+        ).Value =
+            folder.ParentId.HasValue
+                ? folder.ParentId.Value
+                : DBNull.Value;
+
+        command.Parameters.Add(
+            "name",
+            OracleDbType.Varchar2
+        ).Value = safeNewName;
+
+        command.Parameters.Add(
+            "id",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        var count =
+            Convert.ToInt32(
+                await command.ExecuteScalarAsync()
+            );
+
+        if (count > 0)
+        {
+            throw new Exception(
+                $"Le dossier '{safeNewName}' existe déjà."
+            );
+        }
     }
 
-    // On remonte de la racine vers le dossier courant
-    return path.reverse()
-  }
 
-  const path = buildPath()
+    // ==============================
+    // ANCIEN CHEMIN PHYSIQUE
+    // ==============================
 
-  return (
-    <nav
-      className="breadcrumb"
-      aria-label="Chemin du dossier"
-    >
+    var oldPhysicalPath =
+        await GetFolderPhysicalPathAsync(
+            folderId
+        );
 
-      {/* Accueil */}
-      <button
-        type="button"
-        className="breadcrumb-item breadcrumb-home"
-        onClick={() => {
-          if (folders.length > 0) {
-            const rootFolder = folders.find(
-              folder => folder.parentId === null
+
+    // Le dossier doit réellement exister
+    if (!Directory.Exists(oldPhysicalPath))
+    {
+        throw new DirectoryNotFoundException(
+            $"Le dossier physique n'existe pas : {oldPhysicalPath}"
+        );
+    }
+
+
+    // ==============================
+    // NOUVEAU CHEMIN PHYSIQUE
+    // ==============================
+
+    var parentPhysicalPath =
+        folder.ParentId.HasValue
+            ? await GetFolderPhysicalPathAsync(
+                folder.ParentId.Value
             )
+            : StorageRoot;
 
-            if (rootFolder) {
-              onNavigate(rootFolder.id)
-            }
-          }
-        }}
-      >
-        🏠 Accueil
-      </button>
+    var newPhysicalPath =
+        Path.Combine(
+            parentPhysicalPath,
+            safeNewName
+        );
 
-      {path.map((folder, index) => {
-        const isLast = index === path.length - 1
 
-        return (
-          <div
-            key={folder.id}
-            className="breadcrumb-part"
-          >
-            <span className="breadcrumb-separator">
-              /
-            </span>
+    // ==============================
+    // VÉRIFIER DESTINATION
+    // ==============================
 
-            {isLast ? (
-              <span className="breadcrumb-current">
-                {folder.name}
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="breadcrumb-item"
-                onClick={() => onNavigate(folder.id)}
-              >
-                {folder.name}
-              </button>
-            )}
-          </div>
+    if (Directory.Exists(newPhysicalPath))
+    {
+        throw new IOException(
+            $"Le dossier physique '{safeNewName}' existe déjà."
+        );
+    }
+
+
+    // ==============================
+    // RENOMMER PHYSIQUEMENT
+    // ==============================
+
+    Directory.Move(
+        oldPhysicalPath,
+        newPhysicalPath
+    );
+
+
+    try
+    {
+        // ==============================
+        // MISE À JOUR ORACLE
+        // ==============================
+
+        await using var connection =
+            _factory.Create();
+
+        await connection.OpenAsync();
+
+        await using var transaction =
+            await connection.BeginTransactionAsync();
+
+        try
+        {
+            const string sql = """
+                UPDATE FILE_FOLDERS
+                SET
+                    NAME = :name,
+                    UPDATED_AT = SYSTIMESTAMP
+                WHERE ID = :id
+                """;
+
+            await using var command =
+                new OracleCommand(
+                    sql,
+                    connection
+                );
+
+            command.Transaction =
+                (OracleTransaction)transaction;
+
+            command.Parameters.Add(
+                "name",
+                OracleDbType.Varchar2
+            ).Value = safeNewName;
+
+            command.Parameters.Add(
+                "id",
+                OracleDbType.Int64
+            ).Value = folderId;
+
+            await command.ExecuteNonQueryAsync();
+
+
+            // ====================================
+            // METTRE À JOUR LES CHEMINS DES FICHIERS
+            // ====================================
+
+            await UpdateDescendantFilePathsAsync(
+                connection,
+                transaction,
+                folderId
+            );
+
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+    catch
+    {
+        // Oracle a échoué :
+        // on remet le dossier physique
+        // à son ancien emplacement.
+
+        if (Directory.Exists(newPhysicalPath))
+        {
+            Directory.Move(
+                newPhysicalPath,
+                oldPhysicalPath
+            );
+        }
+
+        throw;
+    }
+}
+
+
+---
+
+2. Mettre à jour les chemins des fichiers
+
+Ajoute cette méthode dans FolderService :
+
+private async Task UpdateDescendantFilePathsAsync(
+    OracleConnection connection,
+    OracleTransaction transaction,
+    long folderId)
+{
+    const string sql = """
+        SELECT
+            ID,
+            FOLDER_ID,
+            FILE_NAME
+        FROM FILE_DOCUMENTS
+        WHERE FOLDER_ID IN
+        (
+            SELECT ID
+            FROM FILE_FOLDERS
+            START WITH ID = :folderId
+            CONNECT BY PRIOR ID = PARENT_ID
         )
-      })}
-    </nav>
-  )
+        """;
+
+    var files =
+        new List<(
+            long Id,
+            long FolderId,
+            string FileName
+        )>();
+
+
+    await using (
+        var command =
+            new OracleCommand(
+                sql,
+                connection
+            ))
+    {
+        command.Transaction = transaction;
+
+        command.Parameters.Add(
+            "folderId",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            files.Add(
+                (
+                    reader.GetInt64(0),
+                    reader.GetInt64(1),
+                    reader.GetString(2)
+                )
+            );
+        }
+    }
+
+
+    // ==========================================
+    // RECALCULER LE CHEMIN PHYSIQUE DE CHAQUE
+    // FICHIER
+    // ==========================================
+
+    foreach (var file in files)
+    {
+        var folderPath =
+            await GetFolderPhysicalPathAsync(
+                file.FolderId
+            );
+
+        var filePath =
+            Path.Combine(
+                folderPath,
+                file.FileName
+            );
+
+
+        const string updateSql = """
+            UPDATE FILE_DOCUMENTS
+            SET
+                FILE_PATH = :filePath,
+                UPDATED_AT = SYSTIMESTAMP
+            WHERE ID = :id
+            """;
+
+        await using var updateCommand =
+            new OracleCommand(
+                updateSql,
+                connection
+            );
+
+        updateCommand.Transaction =
+            transaction;
+
+        updateCommand.Parameters.Add(
+            "filePath",
+            OracleDbType.Varchar2
+        ).Value = filePath;
+
+        updateCommand.Parameters.Add(
+            "id",
+            OracleDbType.Int64
+        ).Value = file.Id;
+
+        await updateCommand.ExecuteNonQueryAsync();
+    }
 }
 
 
 ---
 
-2. components/FileManager.tsx
+3. SanitizeFolderName
 
-Dans ton FileManager, importe le composant :
+Dans FolderService, garde également :
 
-import Breadcrumb from "./Breadcrumb"
-
-Puis utilise-le au-dessus de ta liste de fichiers :
-
-<Breadcrumb
-  folders={folders}
-  selectedFolderId={selectedFolderId}
-  onNavigate={(folderId) => {
-    setSelectedFolderId(folderId)
-  }}
-/>
-
-Par exemple :
-
-"use client"
-
-import { useEffect, useState } from "react"
-
-import Breadcrumb from "./Breadcrumb"
-import FolderTree from "./FolderTree"
-import FileList from "./FileList"
-
-import type { Folder, DocumentFile } from "@/lib/types"
-
-export default function FileManager() {
-
-  const [folders, setFolders] = useState<Folder[]>([])
-  const [files, setFiles] = useState<DocumentFile[]>([])
-
-  const [selectedFolderId, setSelectedFolderId] =
-    useState<number | null>(null)
-
-  useEffect(() => {
-    loadFolders()
-  }, [])
-
-  async function loadFolders() {
-
-    const response = await fetch(
-      "https://localhost:7001/api/folders"
-    )
-
-    if (!response.ok) {
-      throw new Error("Impossible de charger les dossiers")
+private static string SanitizeFolderName(
+    string name)
+{
+    foreach (
+        var character
+        in Path.GetInvalidFileNameChars())
+    {
+        name = name.Replace(
+            character,
+            '_'
+        );
     }
 
-    const data: Folder[] = await response.json()
-
-    setFolders(data)
-
-    // Sélectionner le dossier racine
-    const rootFolder = data.find(
-      folder => folder.parentId === null
-    )
-
-    if (rootFolder) {
-      setSelectedFolderId(rootFolder.id)
-    }
-  }
-
-  useEffect(() => {
-
-    if (selectedFolderId === null) {
-      return
-    }
-
-    loadFiles(selectedFolderId)
-
-  }, [selectedFolderId])
-
-  async function loadFiles(folderId: number) {
-
-    const response = await fetch(
-      `https://localhost:7001/api/files/folder/${folderId}`
-    )
-
-    if (!response.ok) {
-      throw new Error("Impossible de charger les fichiers")
-    }
-
-    const data: DocumentFile[] =
-      await response.json()
-
-    setFiles(data)
-  }
-
-  return (
-    <div className="document-Layout">
-
-      {/* SIDEBAR */}
-      <aside className="docs-sidebar">
-
-        <div className="sidebar-title">
-          Documents
-        </div>
-
-        <FolderTree
-          folders={folders}
-          selectedFolderId={selectedFolderId}
-          onSelect={setSelectedFolderId}
-        />
-
-      </aside>
-
-      {/* CONTENU */}
-      <main className="docs-content">
-
-        <h1 className="docs-page-title">
-          Gestionnaire de fichiers
-        </h1>
-
-        {/* CHEMIN COMPLET */}
-        <Breadcrumb
-          folders={folders}
-          selectedFolderId={selectedFolderId}
-          onNavigate={(folderId) => {
-            setSelectedFolderId(folderId)
-          }}
-        />
-
-        {/* FICHIERS */}
-        <FileList
-          files={files}
-        />
-
-      </main>
-
-    </div>
-  )
+    return name.Trim();
 }
 
 
 ---
 
-3. CSS du chemin
+4. Ton Controller reste pratiquement identique
 
-Ajoute ceci dans globals.css :
+[HttpPut("{id}/rename")]
+public async Task<IActionResult> Rename(
+    long id,
+    RenameDto dto)
+{
+    try
+    {
+        await _service.RenameAsync(
+            id,
+            dto.Name
+        );
 
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-
-  margin-bottom: 20px;
-
-  font-size: 14px;
+        return Ok(new
+        {
+            success = true,
+            message =
+                "Dossier renommé avec succès."
+        });
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(new
+        {
+            success = false,
+            message = ex.Message
+        });
+    }
 }
 
-.breadcrumb-part {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.breadcrumb-item {
-  border: none;
-  background: transparent;
+---
 
-  padding: 4px 6px;
+5. Le résultat
 
-  font-size: 14px;
-  color: #6b7280;
+Supposons :
 
-  cursor: pointer;
-
-  border-radius: 6px;
-
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.breadcrumb-item:hover {
-  background: #f3f4f6;
-  color: #2563eb;
-}
-
-.breadcrumb-home {
-  font-weight: 500;
-}
-
-.breadcrumb-separator {
-  color: #9ca3af;
-  user-select: none;
-}
-
-.breadcrumb-current {
-  padding: 4px 6px;
-
-  color: #111827;
-  font-weight: 600;
-}
-
-Résultat
-
-Si ta base Oracle contient :
+Oracle
 
 Documents
-├── D1
-│   ├── D2
-│   │   └── D3
-│   └── D4
 └── RH
+    └── Contrats
+        └── CDI
 
-Lorsque D3 est sélectionné, tu obtiens :
+et physiquement :
 
-🏠 Accueil / D1 / D2 / D3
+Storage
+└── Documents
+    └── RH
+        └── Contrats
+            └── CDI
+                ├── contrat1.pdf
+                ├── contrat2.pdf
+                └── contrat3.txt
 
-Si tu cliques sur D1 :
+Tu renommes :
 
-🏠 Accueil / D1
+CDI
 
-et selectedFolderId devient automatiquement l'ID de D1, donc la liste des fichiers est rechargée.
+en :
 
-Petite amélioration importante
+CDI_2026
 
-Dans ton cas, je te conseille de faire correspondre Accueil directement au dossier racine Documents. Ainsi, ton interface affichera :
+L'opération devient :
 
-Accueil / D1 / D2
+RENOMMAGE
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │ Vérifier nouveau nom  │
+        └───────────┬───────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │ Vérifier doublon      │
+        └───────────┬───────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │ Directory.Move()      │
+        └───────────┬───────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │ UPDATE FILE_FOLDERS   │
+        │ NAME = CDI_2026       │
+        └───────────┬───────────┘
+                    │
+                    ▼
+        ┌───────────────────────┐
+        │ UPDATE FILE_DOCUMENTS │
+        │ FILE_PATH             │
+        └───────────────────────┘
 
-mais Accueil reste cliquable et ramène toujours au dossier racine.
+Résultat :
 
-Si tu veux, je peux aussi intégrer ce breadcrumb directement dans **ton `FileManager.tsx` actuel**, avec navigation dossier + double-clic + arbre + drag/drop + upload, pour avoir une version complète cohérente avec l'interface que nous avons définie.
+Storage/
+└── Documents/
+    └── RH/
+        └── Contrats/
+            └── CDI_2026/
+                ├── contrat1.pdf
+                ├── contrat2.pdf
+                └── contrat3.txt
+
+et Oracle :
+
+FILE_FOLDERS
+
+ID    NAME       PARENT_ID
+10    Documents  NULL
+11    RH         10
+12    Contrats   11
+13    CDI_2026   12
+
+Les fichiers auront également :
+
+FILE_DOCUMENTS
+
+FILE_NAME       FILE_PATH
+--------------  -----------------------------------------------
+contrat1.pdf    ...\Documents\RH\Contrats\CDI_2026\contrat1.pdf
+contrat2.pdf    ...\Documents\RH\Contrats\CDI_2026\contrat2.pdf
+contrat3.txt    ...\Documents\RH\Contrats\CDI_2026\contrat3.txt
+
+⚠️ Mais je recommande une modification supplémentaire
+
+Pour ton système, il vaut mieux ne pas stocker FILE_PATH comme une donnée de référence permanente. Le chemin peut changer lorsqu'un dossier est renommé ou déplacé.
+
+Une architecture plus robuste serait :
+
+FILE_DOCUMENTS
+----------------
+ID
+FOLDER_ID
+FILE_NAME
+STORED_NAME
+CONTENT_TYPE
+FILE_SIZE
+
+et le chemin physique est toujours calculé :
+
+StorageRoot
+   +
+chemin Oracle des parents
+   +
+FILE_NAME
+
+Ainsi, quand tu fais :
+
+D1 → D1_Nouveau
+
+tu n'as aucune centaine/milliers de lignes FILE_PATH à modifier dans Oracle. Le chemin est reconstruit automatiquement à partir de l'arbre. C'est particulièrement intéressant pour ton système d'archivage, où un dossier peut contenir beaucoup de fichiers.

@@ -1,6 +1,10 @@
-Oui. Tu peux supprimer toute la logique UpdateDescendantFilePathsAsync() et la remplacer par un simple REPLACE.
+Oui. Si le renommage ne marche pas du tout, il vaut mieux corriger le problème à la source plutôt que modifier encore REPLACE.
 
-Dans FolderService.cs, dans RenameAsync, remplace ton ancienne méthode par celle-ci :
+Le point suspect dans notre code précédent est GetFolderPhysicalPathAsync() : pour un renommage, il faut calculer l'ancien chemin avant de modifier Oracle, puis faire le UPDATE, puis Directory.Move.
+
+Je te propose de repartir sur une version plus simple et fiable.
+
+1. Remplace entièrement RenameAsync
 
 public async Task RenameAsync(long folderId, string newName)
 {
@@ -9,61 +13,180 @@ public async Task RenameAsync(long folderId, string newName)
 
     newName = newName.Trim();
 
+    // =========================================================
+    // 1. Connexion Oracle
+    // =========================================================
+
     await using var connection = _factory.Create();
     await connection.OpenAsync();
+
+    // =========================================================
+    // 2. Récupérer le dossier
+    // =========================================================
+
+    string oldName;
+    long? parentId;
+
+    const string selectSql = """
+        SELECT NAME, PARENT_ID
+        FROM FILE_FOLDERS
+        WHERE ID = :id
+        """;
+
+    await using (var command =
+        new OracleCommand(selectSql, connection))
+    {
+        command.Parameters.Add(
+            "id",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
+
+        if (!await reader.ReadAsync())
+            throw new Exception("Dossier introuvable.");
+
+        oldName = reader.GetString(0);
+
+        parentId = reader.IsDBNull(1)
+            ? null
+            : reader.GetInt64(1);
+    }
+
+    // =========================================================
+    // 3. Vérifier le nouveau nom
+    // =========================================================
+
+    const string duplicateSql = """
+        SELECT COUNT(*)
+        FROM FILE_FOLDERS
+        WHERE NAME = :name
+        AND (
+            PARENT_ID = :parentId
+            OR (PARENT_ID IS NULL AND :parentId IS NULL)
+        )
+        AND ID <> :id
+        """;
+
+    await using (var command =
+        new OracleCommand(duplicateSql, connection))
+    {
+        command.Parameters.Add(
+            "name",
+            OracleDbType.Varchar2
+        ).Value = newName;
+
+        command.Parameters.Add(
+            "parentId",
+            OracleDbType.Int64
+        ).Value =
+            parentId.HasValue
+                ? parentId.Value
+                : DBNull.Value;
+
+        command.Parameters.Add(
+            "id",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        var count =
+            Convert.ToInt32(
+                await command.ExecuteScalarAsync()
+            );
+
+        if (count > 0)
+            throw new Exception(
+                $"Un dossier '{newName}' existe déjà."
+            );
+    }
+
+    // =========================================================
+    // 4. CHEMIN PHYSIQUE ACTUEL
+    // =========================================================
+
+    var oldPath =
+        await GetFolderPhysicalPathAsync(folderId);
+
+    if (!Directory.Exists(oldPath))
+    {
+        throw new DirectoryNotFoundException(
+            $"Le dossier physique n'existe pas : {oldPath}"
+        );
+    }
+
+    // =========================================================
+    // 5. NOUVEAU CHEMIN
+    // =========================================================
+
+    var parentPath =
+        Directory.GetParent(oldPath)?.FullName;
+
+    if (string.IsNullOrEmpty(parentPath))
+        throw new Exception(
+            "Impossible de déterminer le dossier parent."
+        );
+
+    var newPath =
+        Path.Combine(
+            parentPath,
+            SanitizeFolderName(newName)
+        );
+
+    // =========================================================
+    // 6. Vérifier que le nouveau dossier n'existe pas
+    // =========================================================
+
+    if (Directory.Exists(newPath))
+    {
+        throw new Exception(
+            $"Le dossier physique '{newName}' existe déjà."
+        );
+    }
+
+    // =========================================================
+    // 7. RENOMMER PHYSIQUEMENT
+    // =========================================================
+
+    try
+    {
+        Directory.Move(oldPath, newPath);
+    }
+    catch (Exception ex)
+    {
+        throw new Exception(
+            $"Impossible de renommer le dossier physiquement.\n" +
+            $"Ancien chemin : {oldPath}\n" +
+            $"Nouveau chemin : {newPath}\n" +
+            $"Erreur : {ex.Message}",
+            ex
+        );
+    }
+
+    // =========================================================
+    // 8. Transaction Oracle
+    // =========================================================
 
     await using var transaction =
         (OracleTransaction)await connection.BeginTransactionAsync();
 
     try
     {
-        // 1. Récupérer le dossier
-        const string selectSql = """
-            SELECT NAME, PARENT_ID
-            FROM FILE_FOLDERS
+        // -----------------------------------------------------
+        // Modifier le nom du dossier
+        // -----------------------------------------------------
+
+        const string updateFolderSql = """
+            UPDATE FILE_FOLDERS
+            SET NAME = :name,
+                UPDATED_AT = SYSTIMESTAMP
             WHERE ID = :id
             """;
 
-        string oldName;
-        long? parentId;
-
         await using (var command =
-            new OracleCommand(selectSql, connection))
-        {
-            command.Transaction = transaction;
-
-            command.Parameters.Add(
-                "id",
-                OracleDbType.Int64
-            ).Value = folderId;
-
-            await using var reader =
-                await command.ExecuteReaderAsync();
-
-            if (!await reader.ReadAsync())
-                throw new Exception("Dossier introuvable.");
-
-            oldName = reader.GetString(0);
-
-            parentId = reader.IsDBNull(1)
-                ? null
-                : reader.GetInt64(1);
-        }
-
-        // 2. Vérifier qu'un autre dossier porte déjà ce nom
-        const string duplicateSql = """
-            SELECT COUNT(*)
-            FROM FILE_FOLDERS
-            WHERE NAME = :name
-              AND (
-                    PARENT_ID = :parentId
-                    OR (PARENT_ID IS NULL AND :parentId IS NULL)
-                  )
-              AND ID <> :id
-            """;
-
-        await using (var command =
-            new OracleCommand(duplicateSql, connection))
+            new OracleCommand(
+                updateFolderSql,
+                connection))
         {
             command.Transaction = transaction;
 
@@ -73,208 +196,106 @@ public async Task RenameAsync(long folderId, string newName)
             ).Value = newName;
 
             command.Parameters.Add(
-                "parentId",
-                OracleDbType.Int64
-            ).Value = parentId ?? (object)DBNull.Value;
-
-            command.Parameters.Add(
                 "id",
                 OracleDbType.Int64
             ).Value = folderId;
 
-            var count =
-                Convert.ToInt32(
-                    await command.ExecuteScalarAsync()
-                );
-
-            if (count > 0)
-                throw new Exception(
-                    $"Un dossier nommé '{newName}' existe déjà."
-                );
+            await command.ExecuteNonQueryAsync();
         }
 
-        // 3. Calculer les anciens et nouveaux chemins physiques
-        var oldFolderPath =
-            await GetFolderPhysicalPathAsync(folderId);
+        // -----------------------------------------------------
+        // Modifier les chemins des fichiers
+        // -----------------------------------------------------
 
-        var newFolderPath =
-            Path.Combine(
-                Directory.GetParent(oldFolderPath)!.FullName,
-                SanitizeFolderName(newName)
-            );
-
-        // 4. Vérifier que le dossier physique existe
-        if (!Directory.Exists(oldFolderPath))
-            throw new DirectoryNotFoundException(
-                $"Le dossier physique n'existe pas : {oldFolderPath}"
-            );
-
-        // 5. Vérifier que le nouveau chemin n'existe pas
-        if (Directory.Exists(newFolderPath))
-            throw new Exception(
-                $"Le dossier physique '{newName}' existe déjà."
-            );
-
-        // 6. Renommer physiquement
-        Directory.Move(
-            oldFolderPath,
-            newFolderPath
-        );
-
-        try
-        {
-            // 7. Mettre à jour le nom dans Oracle
-            const string updateFolderSql = """
-                UPDATE FILE_FOLDERS
-                SET NAME = :name,
-                    UPDATED_AT = SYSTIMESTAMP
-                WHERE ID = :id
-                """;
-
-            await using (var command =
-                new OracleCommand(
-                    updateFolderSql,
-                    connection))
-            {
-                command.Transaction = transaction;
-
-                command.Parameters.Add(
-                    "name",
-                    OracleDbType.Varchar2
-                ).Value = newName;
-
-                command.Parameters.Add(
-                    "id",
-                    OracleDbType.Int64
-                ).Value = folderId;
-
-                await command.ExecuteNonQueryAsync();
-            }
-
-            // 8. Mettre à jour les FILE_PATH
-            //    de tous les fichiers du dossier
-            //    et de ses sous-dossiers.
-            const string updatePathsSql = """
-                UPDATE FILE_DOCUMENTS
-                SET FILE_PATH = REPLACE(
+        const string updateFilesSql = """
+            UPDATE FILE_DOCUMENTS
+            SET FILE_PATH =
+                REPLACE(
                     FILE_PATH,
                     :oldPath,
                     :newPath
-                )
-                WHERE FILE_PATH LIKE :oldPathLike
-                """;
+                ),
+                UPDATED_AT = SYSTIMESTAMP
+            WHERE FILE_PATH LIKE :oldPathLike
+            """;
 
-            await using (var command =
-                new OracleCommand(
-                    updatePathsSql,
-                    connection))
-            {
-                command.Transaction = transaction;
-
-                command.Parameters.Add(
-                    "oldPath",
-                    OracleDbType.Varchar2
-                ).Value = oldFolderPath;
-
-                command.Parameters.Add(
-                    "newPath",
-                    OracleDbType.Varchar2
-                ).Value = newFolderPath;
-
-                command.Parameters.Add(
-                    "oldPathLike",
-                    OracleDbType.Varchar2
-                ).Value = oldFolderPath + "%";
-
-                await command.ExecuteNonQueryAsync();
-            }
-
-            // 9. Valider la transaction
-            await transaction.CommitAsync();
-        }
-        catch
+        await using (var command =
+            new OracleCommand(
+                updateFilesSql,
+                connection))
         {
-            // Si Oracle échoue,
-            // on remet le dossier à son ancien nom
-            if (Directory.Exists(newFolderPath) &&
-                !Directory.Exists(oldFolderPath))
-            {
-                Directory.Move(
-                    newFolderPath,
-                    oldFolderPath
-                );
-            }
+            command.Transaction = transaction;
 
-            throw;
+            command.Parameters.Add(
+                "oldPath",
+                OracleDbType.Varchar2
+            ).Value = oldPath;
+
+            command.Parameters.Add(
+                "newPath",
+                OracleDbType.Varchar2
+            ).Value = newPath;
+
+            command.Parameters.Add(
+                "oldPathLike",
+                OracleDbType.Varchar2
+            ).Value = oldPath + "%";
+
+            await command.ExecuteNonQueryAsync();
         }
+
+        // -----------------------------------------------------
+        // Valider Oracle
+        // -----------------------------------------------------
+
+        await transaction.CommitAsync();
     }
     catch
     {
+        // Oracle a échoué :
+        // on remet le dossier physique à son ancien nom
+
+        try
+        {
+            if (Directory.Exists(newPath) &&
+                !Directory.Exists(oldPath))
+            {
+                Directory.Move(newPath, oldPath);
+            }
+        }
+        catch
+        {
+            // Ne pas masquer l'erreur Oracle
+        }
+
         try
         {
             await transaction.RollbackAsync();
         }
         catch
         {
-            // Ignorer l'erreur de rollback
         }
 
         throw;
     }
 }
 
-Tu peux supprimer complètement
+2. Très important : vérifie ton GetFolderPhysicalPathAsync
 
-Cette ancienne méthode n'est plus nécessaire :
-
-UpdateDescendantFilePathsAsync(...)
-
-Et surtout, tu n'as plus besoin de faire :
-
-GetFolderPhysicalPathAsync(file.FolderId)
-
-pour chaque fichier.
-
-Le fonctionnement devient simplement :
-
-Renommer D1 → D1_Nouveau
-        │
-        ├── Directory.Move()
-        │
-        ├── UPDATE FILE_FOLDERS
-        │      NAME = 'D1_Nouveau'
-        │
-        └── UPDATE FILE_DOCUMENTS
-               FILE_PATH =
-               REPLACE(FILE_PATH, ancien chemin, nouveau chemin)
-
-Ainsi, si tu as :
-
-D1/
- ├── fichier1.pdf
- └── D2/
-      └── fichier2.pdf
-
-les deux FILE_PATH sont automatiquement corrigés, y compris ceux des sous-dossiers.
-
-
--------
-
-Oui. Le problème vient très probablement de Directory.Move() : le dossier parent ne peut pas être renommé si le dossier physique est utilisé/verrouillé par un fichier ou un FileStream encore ouvert. Mais un dossier contenant des sous-dossiers peut parfaitement être renommé avec Directory.Move().
-
-Dans ton cas, il faut surtout vérifier que GetFolderPhysicalPathAsync() construit correctement le chemin du dossier parent.
-
-Remplace GetFolderPhysicalPathAsync par cette version
+Utilise exactement ceci :
 
 private async Task<string> GetFolderPhysicalPathAsync(long folderId)
 {
-    var folders = new List<string>();
+    var folders =
+        new List<(string Name, long? ParentId)>();
 
-    await using var connection = _factory.Create();
+    await using var connection =
+        _factory.Create();
+
     await connection.OpenAsync();
 
     const string sql = """
-        SELECT NAME
+        SELECT NAME, PARENT_ID
         FROM FILE_FOLDERS
         START WITH ID = :folderId
         CONNECT BY PRIOR PARENT_ID = ID
@@ -293,90 +314,99 @@ private async Task<string> GetFolderPhysicalPathAsync(long folderId)
 
     while (await reader.ReadAsync())
     {
-        folders.Add(reader.GetString(0));
+        folders.Add(
+            (
+                reader.GetString(0),
+                reader.IsDBNull(1)
+                    ? null
+                    : reader.GetInt64(1)
+            )
+        );
     }
 
     if (folders.Count == 0)
         throw new Exception("Dossier introuvable.");
 
-    // Oracle retourne du dossier vers la racine.
     folders.Reverse();
 
     var path = StorageRoot;
 
-    foreach (var folderName in folders)
+    foreach (var folder in folders)
     {
         path = Path.Combine(
             path,
-            SanitizeFolderName(folderName)
+            SanitizeFolderName(folder.Name)
         );
     }
 
     return path;
 }
 
-Et garde :
+3. Et le StorageRoot
 
-private static string SanitizeFolderName(string name)
+Dans FolderService :
+
+private string StorageRoot
 {
-    foreach (var character in Path.GetInvalidFileNameChars())
+    get
     {
-        name = name.Replace(character, '_');
-    }
+        var path = Path.Combine(
+            _environment.ContentRootPath,
+            "Storage"
+        );
 
-    return name.Trim();
+        Directory.CreateDirectory(path);
+
+        return path;
+    }
 }
 
-Exemple
-
-Si Oracle contient :
+4. Pourquoi cette version devrait fonctionner avec
 
 Dossier 1
 └── Dossier 2
     └── Dossier 3
+        └── fichier.txt
 
-GetFolderPhysicalPathAsync(Dossier1) doit retourner :
+Si tu renommes :
 
-Storage\Dossier 1
+Dossier 1 → Dossier ABC
 
-et non :
-
-Storage\Dossier 1\Dossier 2
-
-Donc :
-
-Directory.Move(
-    @"Storage\Dossier 1",
-    @"Storage\Dossier 1 Nouveau"
-);
-
-renommera tout le contenu, automatiquement :
-
-Avant:
+Windows fait directement :
 
 Storage/
-└── Dossier 1/
+└── Dossier ABC/
     └── Dossier 2/
         └── Dossier 3/
+            └── fichier.txt
 
+Puis Oracle fait :
 
-Après:
+Dossier 1
+       ↓
+Dossier ABC
 
-Storage/
-└── Dossier 1 Nouveau/
-    └── Dossier 2/
-        └── Dossier 3/
+et :
 
-Puis ton :
+FILE_PATH
 
-UPDATE FILE_DOCUMENTS
-SET FILE_PATH = REPLACE(
-    FILE_PATH,
-    :oldPath,
-    :newPath
-)
-WHERE FILE_PATH LIKE :oldPathLike
+passe par exemple de :
 
-mettra à jour les chemins des fichiers de Dossier 1 et de tous ses sous-dossiers.
+C:\...\Storage\Dossier 1\Dossier 2\Dossier 3\fichier.txt
 
-Donc tu n'as pas besoin de renommer physiquement les sous-dossiers un par un. Directory.Move() déplace/renomme l'arborescence entière.
+à :
+
+C:\...\Storage\Dossier ABC\Dossier 2\Dossier 3\fichier.txt
+
+Si ça échoue encore
+
+Avec cette version, l'erreur indiquera maintenant exactement à quelle étape ça bloque.
+
+En particulier, si tu obtiens :
+
+Impossible de renommer le dossier physiquement.
+Ancien chemin : ...
+Nouveau chemin : ...
+Erreur : ...
+
+envoie-moi le message Erreur : ... exact. C'est lui qui permettra d'identifier immédiatement si le problème vient du chemin, d'un fichier verrouillé, des droits Windows ou de la construction de l'arborescence.

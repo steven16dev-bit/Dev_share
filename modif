@@ -1,55 +1,147 @@
-Exactement. L'erreur vient du fait que l'API ne retourne plus directement un tableau, mais maintenant un objet :
+Oui. Les deux problèmes viennent probablement du même point : le chargement des fichiers n'est pas correctement synchronisé avec page / pageSize, et l'upload doit recharger la page courante.
 
-{
-  "items": [],
-  "page": 1,
-  "pageSize": 20,
-  "totalItems": 100,
-  "totalPages": 5
+Voici les changements exacts.
+
+1. FileManager.tsx — loadFiles
+
+Remplace ta fonction loadFiles par :
+
+async function loadFiles(
+  folderId: number,
+  currentPage: number,
+  currentPageSize: number
+) {
+  try {
+    setLoading(true)
+
+    const data = await getFiles(
+      folderId,
+      currentPage,
+      currentPageSize
+    )
+
+    setFiles(data.items)
+    setTotalItems(data.totalItems)
+    setTotalPages(data.totalPages)
+  }
+  catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Impossible de charger les fichiers."
+    )
+  }
+  finally {
+    setLoading(false)
+  }
 }
 
-Donc files.slice() ne peut plus fonctionner.
+2. useEffect — chargement des fichiers
 
-Puisque tu veux la pagination côté API, il faut supprimer complètement slice.
+Remplace celui qui charge les fichiers par :
 
-1. lib/types.ts
+useEffect(() => {
+  if (selectedFolderId === null)
+    return
 
-Ajoute ce type à la fin du fichier :
+  loadFiles(
+    selectedFolderId,
+    page,
+    pageSize
+  )
+}, [selectedFolderId, page, pageSize])
 
-export interface PagedResult<T> {
-  items: T[]
-  page: number
-  pageSize: number
-  totalItems: number
-  totalPages: number
-}
+C'est cette partie qui fait que les fichiers changent quand page change.
 
 
 ---
 
-2. lib/api.ts
+3. changePage
 
-Remplace complètement getFiles
+Utilise exactement :
 
-Tu as actuellement :
+function changePage(newPage: number) {
+  if (newPage < 1 || newPage > totalPages)
+    return
 
-export async function getFiles(
-  folderId: number
-): Promise<DocumentFile[]> {
-  const response = await fetch(
-    `${API}/files/folder/${folderId}`,
-    { cache: "no-store" }
+  const params = new URLSearchParams(
+    searchParams.toString()
   )
 
-  if (!response.ok)
-    throw new Error(
-      "Impossible de charger les fichiers."
-    )
+  params.set("page", String(newPage))
 
-  return response.json()
+  router.push(
+    `${pathname}?${params.toString()}`,
+    { scroll: false }
+  )
 }
 
+J'utilise ici router.push() plutôt que replace() : c'est plus pratique pour naviguer entre les pages avec les boutons précédent/suivant.
+
+
+---
+
+4. Upload — très important
+
+Ton ancien upload fait probablement :
+
+await uploadFile(selectedFolderId, file)
+
+setMessage("Fichier importé avec succès.")
+
+await loadFiles(selectedFolderId)
+
+Il faut maintenant passer page et pageSize.
+
 Remplace par :
+
+await uploadFile(selectedFolderId, file)
+
+setMessage("Fichier importé avec succès.")
+
+await loadFiles(
+  selectedFolderId,
+  page,
+  pageSize
+)
+
+Donc ta fonction d'upload devrait ressembler à :
+
+async function handleUpload(file: File) {
+  if (selectedFolderId === null)
+    return
+
+  try {
+    setError("")
+    setMessage("Upload en cours...")
+
+    await uploadFile(
+      selectedFolderId,
+      file
+    )
+
+    setMessage(
+      `Fichier "${file.name}" importé avec succès.`
+    )
+
+    await loadFiles(
+      selectedFolderId,
+      page,
+      pageSize
+    )
+  }
+  catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Erreur pendant l'upload."
+    )
+  }
+}
+
+5. Vérifie getFiles dans lib/api.ts
+
+Il doit être exactement comme ceci :
 
 export async function getFiles(
   folderId: number,
@@ -64,253 +156,31 @@ export async function getFiles(
     }
   )
 
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(
       "Impossible de charger les fichiers."
     )
+  }
 
   return response.json()
 }
 
-Et modifie l'import en haut :
+6. Vérifie surtout l'appel API
 
-import type {
-  Folder,
-  DocumentFile,
-  PagedResult
-} from "./types"
-
-
----
-
-3. components/FileManager.tsx
-
-A. Supprime complètement ceci
-
-Si tu as ajouté :
-
-const startIndex = (page - 1) * pageSize
-
-const paginatedFiles = files.slice(
-  startIndex,
-  startIndex + pageSize
-)
-
-const totalPages = Math.ceil(
-  files.length / pageSize
-)
-
-Supprime-le.
-
-Tu n'en as plus besoin.
-
-
----
-
-4. Modifier le state des fichiers
-
-Tu as probablement :
-
-const [files, setFiles] =
-  useState<DocumentFile[]>([])
-
-Remplace par :
-
-const [files, setFiles] =
-  useState<DocumentFile[]>([])
-
-const [totalItems, setTotalItems] =
-  useState(0)
-
-const [totalPages, setTotalPages] =
-  useState(0)
-
-
----
-
-5. Modifier loadFiles
-
-Tu as probablement :
-
-async function loadFiles(folderId: number) {
-  try {
-    const data = await getFiles(folderId)
-
-    setFiles(data)
-  } catch (err) {
-    ...
-  }
-}
-
-Remplace par :
-
-async function loadFiles(
-  folderId: number,
-  currentPage: number = page,
-  currentPageSize: number = pageSize
-) {
-  try {
-    const data = await getFiles(
-      folderId,
-      currentPage,
-      currentPageSize
-    )
-
-    setFiles(data.items)
-
-    setTotalItems(data.totalItems)
-
-    setTotalPages(data.totalPages)
-  }
-  catch (err) {
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Impossible de charger les fichiers."
-    )
-  }
-}
-
-
----
-
-6. Modifier le useEffect qui charge les fichiers
-
-Tu dois avoir quelque chose comme :
-
-useEffect(() => {
-  if (selectedFolderId === null)
-    return
-
-  loadFiles(selectedFolderId)
-}, [selectedFolderId])
-
-Remplace par :
-
-useEffect(() => {
-  if (selectedFolderId === null)
-    return
-
-  loadFiles(
-    selectedFolderId,
-    page,
-    pageSize
-  )
-}, [
-  selectedFolderId,
-  page,
-  pageSize
-])
-
-Maintenant, lorsque l'URL passe de :
-
-?page=1&pageSize=20
-
-à :
-
-?page=2&pageSize=20
-
-l'API est automatiquement appelée avec :
+Quand tu cliques sur Next, tu dois voir dans le navigateur :
 
 GET /api/files/folder/15?page=2&pageSize=20
 
+Puis :
 
----
+GET /api/files/folder/15?page=3&pageSize=20
 
-7. Modifier FileList
+Si l'URL change mais que tu vois toujours :
 
-Tu avais probablement :
+GET /api/files/folder/15?page=1&pageSize=20
 
-<FileList
-  files={paginatedFiles}
-  ...
-/>
+alors le problème est dans getFiles().
 
-Remplace par :
+Si l'API reçoit bien page=2 mais retourne les mêmes fichiers, alors le problème est côté Oracle / OFFSET ... FETCH.
 
-<FileList
-  files={files}
-  ...
-/>
-
-Il ne faut plus utiliser paginatedFiles.
-
-
----
-
-8. Pagination
-
-Garde ta fonction :
-
-function changePage(newPage: number) {
-  if (newPage < 1 || newPage > totalPages)
-    return
-
-  const params = new URLSearchParams(
-    searchParams.toString()
-  )
-
-  params.set("page", String(newPage))
-
-  router.replace(
-    `${pathname}?${params.toString()}`,
-    { scroll: false }
-  )
-}
-
-Et :
-
-{totalPages > 1 && (
-  <div className="pagination">
-
-    <button
-      disabled={page <= 1}
-      onClick={() => changePage(page - 1)}
-    >
-      ‹
-    </button>
-
-    <span>
-      Page {page} / {totalPages}
-    </span>
-
-    <button
-      disabled={page >= totalPages}
-      onClick={() => changePage(page + 1)}
-    >
-      ›
-    </button>
-
-  </div>
-)}
-
-
----
-
-Architecture finale
-
-Tu as maintenant :
-
-URL
- │
- │ ?folder=15&page=2&pageSize=20
- ↓
-Next.js
- │
- │ GET /api/files/folder/15?page=2&pageSize=20
- ↓
-ASP.NET Core
- │
- ↓
-Oracle
- │
- │ seulement 20 fichiers
- ↓
-Next.js
- │
- ↓
-FileList
-
-Donc plus aucun files.slice().
-
-Et surtout, page et pageSize restent dans l'URL : après F5, tu restes sur le même dossier + la même page + la même taille de page.
+Le plus important : ne garde aucun files.slice() dans FileManager.tsx. La pagination est maintenant entièrement faite par l'API.

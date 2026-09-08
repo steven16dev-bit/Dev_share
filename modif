@@ -260,3 +260,123 @@ les deux FILE_PATH sont automatiquement corrigés, y compris ceux des sous-dossi
 
 -------
 
+Oui. Le problème vient très probablement de Directory.Move() : le dossier parent ne peut pas être renommé si le dossier physique est utilisé/verrouillé par un fichier ou un FileStream encore ouvert. Mais un dossier contenant des sous-dossiers peut parfaitement être renommé avec Directory.Move().
+
+Dans ton cas, il faut surtout vérifier que GetFolderPhysicalPathAsync() construit correctement le chemin du dossier parent.
+
+Remplace GetFolderPhysicalPathAsync par cette version
+
+private async Task<string> GetFolderPhysicalPathAsync(long folderId)
+{
+    var folders = new List<string>();
+
+    await using var connection = _factory.Create();
+    await connection.OpenAsync();
+
+    const string sql = """
+        SELECT NAME
+        FROM FILE_FOLDERS
+        START WITH ID = :folderId
+        CONNECT BY PRIOR PARENT_ID = ID
+        """;
+
+    await using var command =
+        new OracleCommand(sql, connection);
+
+    command.Parameters.Add(
+        "folderId",
+        OracleDbType.Int64
+    ).Value = folderId;
+
+    await using var reader =
+        await command.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        folders.Add(reader.GetString(0));
+    }
+
+    if (folders.Count == 0)
+        throw new Exception("Dossier introuvable.");
+
+    // Oracle retourne du dossier vers la racine.
+    folders.Reverse();
+
+    var path = StorageRoot;
+
+    foreach (var folderName in folders)
+    {
+        path = Path.Combine(
+            path,
+            SanitizeFolderName(folderName)
+        );
+    }
+
+    return path;
+}
+
+Et garde :
+
+private static string SanitizeFolderName(string name)
+{
+    foreach (var character in Path.GetInvalidFileNameChars())
+    {
+        name = name.Replace(character, '_');
+    }
+
+    return name.Trim();
+}
+
+Exemple
+
+Si Oracle contient :
+
+Dossier 1
+└── Dossier 2
+    └── Dossier 3
+
+GetFolderPhysicalPathAsync(Dossier1) doit retourner :
+
+Storage\Dossier 1
+
+et non :
+
+Storage\Dossier 1\Dossier 2
+
+Donc :
+
+Directory.Move(
+    @"Storage\Dossier 1",
+    @"Storage\Dossier 1 Nouveau"
+);
+
+renommera tout le contenu, automatiquement :
+
+Avant:
+
+Storage/
+└── Dossier 1/
+    └── Dossier 2/
+        └── Dossier 3/
+
+
+Après:
+
+Storage/
+└── Dossier 1 Nouveau/
+    └── Dossier 2/
+        └── Dossier 3/
+
+Puis ton :
+
+UPDATE FILE_DOCUMENTS
+SET FILE_PATH = REPLACE(
+    FILE_PATH,
+    :oldPath,
+    :newPath
+)
+WHERE FILE_PATH LIKE :oldPathLike
+
+mettra à jour les chemins des fichiers de Dossier 1 et de tous ses sous-dossiers.
+
+Donc tu n'as pas besoin de renommer physiquement les sous-dossiers un par un. Directory.Move() déplace/renomme l'arborescence entière.

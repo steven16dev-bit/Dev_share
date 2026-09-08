@@ -1,93 +1,93 @@
-Oui. On garde uniquement la pagination par URL, sans ajouter de <select>.
-Voici exactement les changements à faire dans ton projet actuel.
+Exactement. L'erreur vient du fait que l'API ne retourne plus directement un tableau, mais maintenant un objet :
 
-1. components/FileManager.tsx
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 20,
+  "totalItems": 100,
+  "totalPages": 5
+}
 
-A. Modifier l'import
+Donc files.slice() ne peut plus fonctionner.
+
+Puisque tu veux la pagination côté API, il faut supprimer complètement slice.
+
+1. lib/types.ts
+
+Ajoute ce type à la fin du fichier :
+
+export interface PagedResult<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+}
+
+
+---
+
+2. lib/api.ts
+
+Remplace complètement getFiles
 
 Tu as actuellement :
 
-"use client"
+export async function getFiles(
+  folderId: number
+): Promise<DocumentFile[]> {
+  const response = await fetch(
+    `${API}/files/folder/${folderId}`,
+    { cache: "no-store" }
+  )
 
-import { useEffect, useRef, useState } from "react"
+  if (!response.ok)
+    throw new Error(
+      "Impossible de charger les fichiers."
+    )
+
+  return response.json()
+}
 
 Remplace par :
 
-"use client"
+export async function getFiles(
+  folderId: number,
+  page: number,
+  pageSize: number
+): Promise<PagedResult<DocumentFile>> {
 
-import { useEffect, useRef, useState } from "react"
-import {
-  usePathname,
-  useRouter,
-  useSearchParams
-} from "next/navigation"
-
-
----
-
-B. Ajouter les hooks
-
-Juste après :
-
-export default function FileManager() {
-
-ajoute :
-
-const router = useRouter()
-const pathname = usePathname()
-const searchParams = useSearchParams()
-
-
----
-
-C. Ajouter page et pageSize
-
-Juste après les hooks précédents :
-
-const page =
-  Math.max(
-    1,
-    Number(searchParams.get("page")) || 1
+  const response = await fetch(
+    `${API}/files/folder/${folderId}?page=${page}&pageSize=${pageSize}`,
+    {
+      cache: "no-store"
+    }
   )
 
-const pageSize =
-  Math.max(
-    1,
-    Number(searchParams.get("pageSize")) || 20
-  )
-
-Donc tu auras :
-
-export default function FileManager() {
-
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-
-  const page =
-    Math.max(
-      1,
-      Number(searchParams.get("page")) || 1
+  if (!response.ok)
+    throw new Error(
+      "Impossible de charger les fichiers."
     )
 
-  const pageSize =
-    Math.max(
-      1,
-      Number(searchParams.get("pageSize")) || 20
-    )
+  return response.json()
+}
 
-  // reste du code
+Et modifie l'import en haut :
+
+import type {
+  Folder,
+  DocumentFile,
+  PagedResult
+} from "./types"
 
 
 ---
 
-2. Ajouter la pagination des fichiers
+3. components/FileManager.tsx
 
-Tu as probablement :
+A. Supprime complètement ceci
 
-const [files, setFiles] = useState<DocumentFile[]>([])
-
-Juste après cette ligne, ajoute :
+Si tu as ajouté :
 
 const startIndex = (page - 1) * pageSize
 
@@ -100,148 +100,147 @@ const totalPages = Math.ceil(
   files.length / pageSize
 )
 
+Supprime-le.
+
+Tu n'en as plus besoin.
+
 
 ---
 
-3. Modifier handleSelectFolder
+4. Modifier le state des fichiers
 
-Tu as actuellement quelque chose comme :
+Tu as probablement :
 
-function handleSelectFolder(id: number) {
-  setSelectedFolderId(id)
+const [files, setFiles] =
+  useState<DocumentFile[]>([])
+
+Remplace par :
+
+const [files, setFiles] =
+  useState<DocumentFile[]>([])
+
+const [totalItems, setTotalItems] =
+  useState(0)
+
+const [totalPages, setTotalPages] =
+  useState(0)
+
+
+---
+
+5. Modifier loadFiles
+
+Tu as probablement :
+
+async function loadFiles(folderId: number) {
+  try {
+    const data = await getFiles(folderId)
+
+    setFiles(data)
+  } catch (err) {
+    ...
+  }
 }
 
 Remplace par :
 
-function handleSelectFolder(id: number) {
-  setSelectedFolderId(id)
+async function loadFiles(
+  folderId: number,
+  currentPage: number = page,
+  currentPageSize: number = pageSize
+) {
+  try {
+    const data = await getFiles(
+      folderId,
+      currentPage,
+      currentPageSize
+    )
 
-  const params = new URLSearchParams(
-    searchParams.toString()
-  )
+    setFiles(data.items)
 
-  params.set("folder", String(id))
-  params.set("page", "1")
+    setTotalItems(data.totalItems)
 
-  router.replace(
-    `${pathname}?${params.toString()}`,
-    { scroll: false }
-  )
-}
-
-Ainsi, quand tu changes de dossier :
-
-folder=15&page=5
-
-devient :
-
-folder=20&page=1
-
-
----
-
-4. Modifier le double-clic dossier
-
-Si tu as :
-
-function handleFolderDoubleClick(id: number) {
-  setSelectedFolderId(id)
-}
-
-remplace par :
-
-function handleFolderDoubleClick(id: number) {
-  setSelectedFolderId(id)
-
-  const params = new URLSearchParams(
-    searchParams.toString()
-  )
-
-  params.set("folder", String(id))
-  params.set("page", "1")
-
-  router.replace(
-    `${pathname}?${params.toString()}`,
-    { scroll: false }
-  )
-}
-
-
----
-
-5. Modifier le chargement initial du dossier
-
-Dans ton useEffect qui charge les dossiers, lorsque tu sélectionnes le dossier racine, utilise :
-
-const folderParam =
-  searchParams.get("folder")
-
-if (folderParam) {
-  const folderId = Number(folderParam)
-
-  const exists = data.some(
-    folder => folder.id === folderId
-  )
-
-  if (exists) {
-    setSelectedFolderId(folderId)
-    return
+    setTotalPages(data.totalPages)
+  }
+  catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Impossible de charger les fichiers."
+    )
   }
 }
 
-const root = data.find(
-  folder => folder.parentId === null
-)
 
-if (root) {
-  setSelectedFolderId(root.id)
+---
 
-  const params = new URLSearchParams(
-    searchParams.toString()
+6. Modifier le useEffect qui charge les fichiers
+
+Tu dois avoir quelque chose comme :
+
+useEffect(() => {
+  if (selectedFolderId === null)
+    return
+
+  loadFiles(selectedFolderId)
+}, [selectedFolderId])
+
+Remplace par :
+
+useEffect(() => {
+  if (selectedFolderId === null)
+    return
+
+  loadFiles(
+    selectedFolderId,
+    page,
+    pageSize
   )
+}, [
+  selectedFolderId,
+  page,
+  pageSize
+])
 
-  params.set("folder", String(root.id))
-  params.set("page", "1")
+Maintenant, lorsque l'URL passe de :
 
-  router.replace(
-    `${pathname}?${params.toString()}`,
-    { scroll: false }
-  )
-}
+?page=1&pageSize=20
+
+à :
+
+?page=2&pageSize=20
+
+l'API est automatiquement appelée avec :
+
+GET /api/files/folder/15?page=2&pageSize=20
 
 
 ---
 
-6. Modifier FileList
+7. Modifier FileList
 
-Tu as actuellement :
-
-<FileList
-  files={files}
-  ...
-/>
-
-Remplace seulement :
-
-files={files}
-
-par :
-
-files={paginatedFiles}
-
-Donc :
+Tu avais probablement :
 
 <FileList
   files={paginatedFiles}
   ...
 />
 
+Remplace par :
+
+<FileList
+  files={files}
+  ...
+/>
+
+Il ne faut plus utiliser paginatedFiles.
+
 
 ---
 
-7. Ajouter la fonction changement de page
+8. Pagination
 
-Dans FileManager.tsx, ajoute :
+Garde ta fonction :
 
 function changePage(newPage: number) {
   if (newPage < 1 || newPage > totalPages)
@@ -259,12 +258,7 @@ function changePage(newPage: number) {
   )
 }
 
-
----
-
-8. Ajouter uniquement les boutons de pagination
-
-Sous ton <FileList />, ajoute :
+Et :
 
 {totalPages > 1 && (
   <div className="pagination">
@@ -293,320 +287,30 @@ Sous ton <FileList />, ajoute :
 
 ---
 
-Résultat
-
-Sans aucun <select> :
-
-/documents?folder=15&page=1&pageSize=20
-
-Puis clic sur suivant :
-
-/documents?folder=15&page=2&pageSize=20
-
-Puis :
-
-/documents?folder=15&page=3&pageSize=20
-
-Et F5 conserve exactement la même page et le même dossier.
-
-pageSize reste à 20 par défaut et peut aussi être changé directement dans l'URL :
-
-/documents?folder=15&page=2&pageSize=50
-
-Il n'y a donc aucun <select> ajouté.
-
-
-------
-
-Oui. Si tu veux une vraie pagination côté API/Oracle, voici exactement ce qu'il faut changer. On garde l'URL :
-
-GET /api/files/folder/15?page=2&pageSize=20
-
-et l'API ne récupère que les 20 fichiers nécessaires.
-
-1. FilesController.cs
-
-Remplace ton endpoint actuel
-
-Tu as probablement :
-
-[HttpGet("folder/{folderId}")]
-public async Task<IActionResult> GetByFolder(long folderId)
-{
-    var files = await _service.GetByFolderAsync(folderId);
-    return Ok(files);
-}
-
-Remplace-le par :
-
-[HttpGet("folder/{folderId}")]
-public async Task<IActionResult> GetByFolder(
-    long folderId,
-    [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 20)
-{
-    if (page < 1)
-        page = 1;
-
-    if (pageSize < 1)
-        pageSize = 20;
-
-    if (pageSize > 100)
-        pageSize = 100;
-
-    var result =
-        await _service.GetByFolderAsync(
-            folderId,
-            page,
-            pageSize);
-
-    return Ok(result);
-}
-
-
----
-
-2. Créer un DTO de pagination
-
-Dans :
-
-backend/DocumentManager.Api/DTOs/
-
-crée :
-
-PagedResult.cs
-
-avec :
-
-namespace DocumentManager.Api.DTOs;
-
-public class PagedResult<T>
-{
-    public List<T> Items { get; set; } = new();
-
-    public int Page { get; set; }
-
-    public int PageSize { get; set; }
-
-    public long TotalItems { get; set; }
-
-    public int TotalPages { get; set; }
-}
-
-
----
-
-3. FileService.cs
-
-Remplace ta méthode actuelle
-
-Si tu as :
-
-public async Task<List<DocumentFile>> GetByFolderAsync(
-    long folderId)
-
-remplace-la par :
-
-public async Task<PagedResult<DocumentFile>> GetByFolderAsync(
-    long folderId,
-    int page,
-    int pageSize)
-{
-    await using var connection = _factory.Create();
-
-    await connection.OpenAsync();
-
-    // =====================================================
-    // 1. Nombre total de fichiers
-    // =====================================================
-
-    long totalItems;
-
-    const string countSql = """
-        SELECT COUNT(*)
-        FROM FILE_DOCUMENTS
-        WHERE FOLDER_ID = :folderId
-        """;
-
-    await using (var countCommand =
-        new OracleCommand(countSql, connection))
-    {
-        countCommand.Parameters.Add(
-            "folderId",
-            OracleDbType.Int64
-        ).Value = folderId;
-
-        totalItems =
-            Convert.ToInt64(
-                await countCommand.ExecuteScalarAsync()
-            );
-    }
-
-    // =====================================================
-    // 2. Calcul pagination
-    // =====================================================
-
-    var totalPages =
-        totalItems == 0
-            ? 0
-            : (int)Math.Ceiling(
-                (double)totalItems / pageSize
-            );
-
-    var offset =
-        (page - 1) * pageSize;
-
-    // =====================================================
-    // 3. Récupérer uniquement la page demandée
-    // =====================================================
-
-    const string sql = """
-        SELECT
-            ID,
-            FOLDER_ID,
-            FILE_NAME,
-            STORED_NAME,
-            FILE_PATH,
-            CONTENT_TYPE,
-            FILE_SIZE,
-            CREATED_AT,
-            UPDATED_AT
-        FROM FILE_DOCUMENTS
-        WHERE FOLDER_ID = :folderId
-        ORDER BY FILE_NAME
-        OFFSET :offset ROWS
-        FETCH NEXT :pageSize ROWS ONLY
-        """;
-
-    var items =
-        new List<DocumentFile>();
-
-    await using (var command =
-        new OracleCommand(sql, connection))
-    {
-        command.Parameters.Add(
-            "folderId",
-            OracleDbType.Int64
-        ).Value = folderId;
-
-        command.Parameters.Add(
-            "offset",
-            OracleDbType.Int32
-        ).Value = offset;
-
-        command.Parameters.Add(
-            "pageSize",
-            OracleDbType.Int32
-        ).Value = pageSize;
-
-        await using var reader =
-            await command.ExecuteReaderAsync();
-
-        while (await reader.ReadAsync())
-        {
-            items.Add(new DocumentFile
-            {
-                Id = reader.GetInt64(0),
-
-                FolderId = reader.GetInt64(1),
-
-                FileName = reader.GetString(2),
-
-                StoredName = reader.GetString(3),
-
-                FilePath = reader.GetString(4),
-
-                ContentType =
-                    reader.IsDBNull(5)
-                        ? null
-                        : reader.GetString(5),
-
-                FileSize =
-                    reader.IsDBNull(6)
-                        ? 0
-                        : reader.GetInt64(6),
-
-                CreatedAt =
-                    reader.GetDateTime(7),
-
-                UpdatedAt =
-                    reader.GetDateTime(8)
-            });
-        }
-    }
-
-    // =====================================================
-    // 4. Résultat
-    // =====================================================
-
-    return new PagedResult<DocumentFile>
-    {
-        Items = items,
-
-        Page = page,
-
-        PageSize = pageSize,
-
-        TotalItems = totalItems,
-
-        TotalPages = totalPages
-    };
-}
-
-N'oublie pas en haut de FileService.cs :
-
-using DocumentManager.Api.DTOs;
-
-
----
-
-4. Résultat de l'API
-
-Avec :
-
-GET /api/files/folder/15?page=2&pageSize=20
-
-l'API retourne :
-
-{
-  "items": [
-    {
-      "id": 21,
-      "folderId": 15,
-      "fileName": "document.pdf",
-      "storedName": "document.pdf",
-      "filePath": "C:\\Storage\\D1\\document.pdf",
-      "contentType": "application/pdf",
-      "fileSize": 125000,
-      "createdAt": "2026-09-08T10:00:00",
-      "updatedAt": "2026-09-08T10:00:00"
-    }
-  ],
-  "page": 2,
-  "pageSize": 20,
-  "totalItems": 157,
-  "totalPages": 8
-}
-
-Et côté Next.js
-
-Ton API client ne doit plus faire :
-
-const files = await response.json()
-
-comme si la réponse était directement un tableau.
-
-Il faudra récupérer :
-
-const result = await response.json()
-
-puis :
-
-result.items
-result.page
-result.pageSize
-result.totalItems
-result.totalPages
-
-Dans cette architecture, il ne faut plus faire files.slice(...) dans Next.js : Oracle fait directement la pagination.
-
+Architecture finale
+
+Tu as maintenant :
+
+URL
+ │
+ │ ?folder=15&page=2&pageSize=20
+ ↓
+Next.js
+ │
+ │ GET /api/files/folder/15?page=2&pageSize=20
+ ↓
+ASP.NET Core
+ │
+ ↓
+Oracle
+ │
+ │ seulement 20 fichiers
+ ↓
+Next.js
+ │
+ ↓
+FileList
+
+Donc plus aucun files.slice().
+
+Et surtout, page et pageSize restent dans l'URL : après F5, tu restes sur le même dossier + la même page + la même taille de page.

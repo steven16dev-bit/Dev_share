@@ -318,3 +318,295 @@ Il n'y a donc aucun <select> ajouté.
 
 ------
 
+Oui. Si tu veux une vraie pagination côté API/Oracle, voici exactement ce qu'il faut changer. On garde l'URL :
+
+GET /api/files/folder/15?page=2&pageSize=20
+
+et l'API ne récupère que les 20 fichiers nécessaires.
+
+1. FilesController.cs
+
+Remplace ton endpoint actuel
+
+Tu as probablement :
+
+[HttpGet("folder/{folderId}")]
+public async Task<IActionResult> GetByFolder(long folderId)
+{
+    var files = await _service.GetByFolderAsync(folderId);
+    return Ok(files);
+}
+
+Remplace-le par :
+
+[HttpGet("folder/{folderId}")]
+public async Task<IActionResult> GetByFolder(
+    long folderId,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 20)
+{
+    if (page < 1)
+        page = 1;
+
+    if (pageSize < 1)
+        pageSize = 20;
+
+    if (pageSize > 100)
+        pageSize = 100;
+
+    var result =
+        await _service.GetByFolderAsync(
+            folderId,
+            page,
+            pageSize);
+
+    return Ok(result);
+}
+
+
+---
+
+2. Créer un DTO de pagination
+
+Dans :
+
+backend/DocumentManager.Api/DTOs/
+
+crée :
+
+PagedResult.cs
+
+avec :
+
+namespace DocumentManager.Api.DTOs;
+
+public class PagedResult<T>
+{
+    public List<T> Items { get; set; } = new();
+
+    public int Page { get; set; }
+
+    public int PageSize { get; set; }
+
+    public long TotalItems { get; set; }
+
+    public int TotalPages { get; set; }
+}
+
+
+---
+
+3. FileService.cs
+
+Remplace ta méthode actuelle
+
+Si tu as :
+
+public async Task<List<DocumentFile>> GetByFolderAsync(
+    long folderId)
+
+remplace-la par :
+
+public async Task<PagedResult<DocumentFile>> GetByFolderAsync(
+    long folderId,
+    int page,
+    int pageSize)
+{
+    await using var connection = _factory.Create();
+
+    await connection.OpenAsync();
+
+    // =====================================================
+    // 1. Nombre total de fichiers
+    // =====================================================
+
+    long totalItems;
+
+    const string countSql = """
+        SELECT COUNT(*)
+        FROM FILE_DOCUMENTS
+        WHERE FOLDER_ID = :folderId
+        """;
+
+    await using (var countCommand =
+        new OracleCommand(countSql, connection))
+    {
+        countCommand.Parameters.Add(
+            "folderId",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        totalItems =
+            Convert.ToInt64(
+                await countCommand.ExecuteScalarAsync()
+            );
+    }
+
+    // =====================================================
+    // 2. Calcul pagination
+    // =====================================================
+
+    var totalPages =
+        totalItems == 0
+            ? 0
+            : (int)Math.Ceiling(
+                (double)totalItems / pageSize
+            );
+
+    var offset =
+        (page - 1) * pageSize;
+
+    // =====================================================
+    // 3. Récupérer uniquement la page demandée
+    // =====================================================
+
+    const string sql = """
+        SELECT
+            ID,
+            FOLDER_ID,
+            FILE_NAME,
+            STORED_NAME,
+            FILE_PATH,
+            CONTENT_TYPE,
+            FILE_SIZE,
+            CREATED_AT,
+            UPDATED_AT
+        FROM FILE_DOCUMENTS
+        WHERE FOLDER_ID = :folderId
+        ORDER BY FILE_NAME
+        OFFSET :offset ROWS
+        FETCH NEXT :pageSize ROWS ONLY
+        """;
+
+    var items =
+        new List<DocumentFile>();
+
+    await using (var command =
+        new OracleCommand(sql, connection))
+    {
+        command.Parameters.Add(
+            "folderId",
+            OracleDbType.Int64
+        ).Value = folderId;
+
+        command.Parameters.Add(
+            "offset",
+            OracleDbType.Int32
+        ).Value = offset;
+
+        command.Parameters.Add(
+            "pageSize",
+            OracleDbType.Int32
+        ).Value = pageSize;
+
+        await using var reader =
+            await command.ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            items.Add(new DocumentFile
+            {
+                Id = reader.GetInt64(0),
+
+                FolderId = reader.GetInt64(1),
+
+                FileName = reader.GetString(2),
+
+                StoredName = reader.GetString(3),
+
+                FilePath = reader.GetString(4),
+
+                ContentType =
+                    reader.IsDBNull(5)
+                        ? null
+                        : reader.GetString(5),
+
+                FileSize =
+                    reader.IsDBNull(6)
+                        ? 0
+                        : reader.GetInt64(6),
+
+                CreatedAt =
+                    reader.GetDateTime(7),
+
+                UpdatedAt =
+                    reader.GetDateTime(8)
+            });
+        }
+    }
+
+    // =====================================================
+    // 4. Résultat
+    // =====================================================
+
+    return new PagedResult<DocumentFile>
+    {
+        Items = items,
+
+        Page = page,
+
+        PageSize = pageSize,
+
+        TotalItems = totalItems,
+
+        TotalPages = totalPages
+    };
+}
+
+N'oublie pas en haut de FileService.cs :
+
+using DocumentManager.Api.DTOs;
+
+
+---
+
+4. Résultat de l'API
+
+Avec :
+
+GET /api/files/folder/15?page=2&pageSize=20
+
+l'API retourne :
+
+{
+  "items": [
+    {
+      "id": 21,
+      "folderId": 15,
+      "fileName": "document.pdf",
+      "storedName": "document.pdf",
+      "filePath": "C:\\Storage\\D1\\document.pdf",
+      "contentType": "application/pdf",
+      "fileSize": 125000,
+      "createdAt": "2026-09-08T10:00:00",
+      "updatedAt": "2026-09-08T10:00:00"
+    }
+  ],
+  "page": 2,
+  "pageSize": 20,
+  "totalItems": 157,
+  "totalPages": 8
+}
+
+Et côté Next.js
+
+Ton API client ne doit plus faire :
+
+const files = await response.json()
+
+comme si la réponse était directement un tableau.
+
+Il faudra récupérer :
+
+const result = await response.json()
+
+puis :
+
+result.items
+result.page
+result.pageSize
+result.totalItems
+result.totalPages
+
+Dans cette architecture, il ne faut plus faire files.slice(...) dans Next.js : Oracle fait directement la pagination.
+

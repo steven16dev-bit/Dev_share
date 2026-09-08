@@ -1,412 +1,284 @@
-Oui. Si le renommage ne marche pas du tout, il vaut mieux corriger le problème à la source plutôt que modifier encore REPLACE.
+Oui. Pour ton projet actuel, voici exactement où modifier chaque fichier pour que l'actualisation F5 conserve le dossier courant.
 
-Le point suspect dans notre code précédent est GetFolderPhysicalPathAsync() : pour un renommage, il faut calculer l'ancien chemin avant de modifier Oracle, puis faire le UPDATE, puis Directory.Move.
+1. app/... — aucun changement
 
-Je te propose de repartir sur une version plus simple et fiable.
+Tu n'as pas besoin de modifier :
 
-1. Remplace entièrement RenameAsync
+app/page.tsx
+app/layout.tsx
 
-public async Task RenameAsync(long folderId, string newName)
-{
-    if (string.IsNullOrWhiteSpace(newName))
-        throw new Exception("Le nom du dossier est obligatoire.");
+On va uniquement modifier FileManager.tsx.
 
-    newName = newName.Trim();
 
-    // =========================================================
-    // 1. Connexion Oracle
-    // =========================================================
+---
 
-    await using var connection = _factory.Create();
-    await connection.OpenAsync();
+2. components/FileManager.tsx
 
-    // =========================================================
-    // 2. Récupérer le dossier
-    // =========================================================
+A. En haut du fichier
 
-    string oldName;
-    long? parentId;
+Tu as probablement actuellement :
 
-    const string selectSql = """
-        SELECT NAME, PARENT_ID
-        FROM FILE_FOLDERS
-        WHERE ID = :id
-        """;
+"use client"
 
-    await using (var command =
-        new OracleCommand(selectSql, connection))
-    {
-        command.Parameters.Add(
-            "id",
-            OracleDbType.Int64
-        ).Value = folderId;
+import { useEffect, useRef, useState } from "react"
 
-        await using var reader =
-            await command.ExecuteReaderAsync();
+Remplace par :
 
-        if (!await reader.ReadAsync())
-            throw new Exception("Dossier introuvable.");
+"use client"
 
-        oldName = reader.GetString(0);
+import { useEffect, useRef, useState } from "react"
+import {
+  usePathname,
+  useRouter,
+  useSearchParams
+} from "next/navigation"
 
-        parentId = reader.IsDBNull(1)
-            ? null
-            : reader.GetInt64(1);
-    }
 
-    // =========================================================
-    // 3. Vérifier le nouveau nom
-    // =========================================================
+---
 
-    const string duplicateSql = """
-        SELECT COUNT(*)
-        FROM FILE_FOLDERS
-        WHERE NAME = :name
-        AND (
-            PARENT_ID = :parentId
-            OR (PARENT_ID IS NULL AND :parentId IS NULL)
+B. Au début du composant FileManager
+
+Tu dois avoir quelque chose comme :
+
+export default function FileManager() {
+
+Juste après cette ligne, ajoute :
+
+const router = useRouter()
+const pathname = usePathname()
+const searchParams = useSearchParams()
+
+Donc :
+
+export default function FileManager() {
+
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // reste du code...
+
+
+---
+
+3. Modifier le useEffect qui charge les dossiers
+
+Tu as actuellement un useEffect qui ressemble à :
+
+useEffect(() => {
+  loadFolders()
+}, [])
+
+ou une fonction loadFolders() qui fait quelque chose comme :
+
+const root = data.find(
+  folder => folder.parentId === null
+)
+
+if (root) {
+  setSelectedFolderId(root.id)
+}
+
+Remplace la logique de chargement par :
+
+useEffect(() => {
+  async function load() {
+    try {
+      setLoading(true)
+
+      const data = await getFolders()
+
+      setFolders(data)
+
+      // -----------------------------------------
+      // Dossier présent dans l'URL
+      // -----------------------------------------
+
+      const folderParam =
+        searchParams.get("folder")
+
+      if (folderParam) {
+        const folderId = Number(folderParam)
+
+        const folderExists = data.some(
+          folder => folder.id === folderId
         )
-        AND ID <> :id
-        """;
 
-    await using (var command =
-        new OracleCommand(duplicateSql, connection))
-    {
-        command.Parameters.Add(
-            "name",
-            OracleDbType.Varchar2
-        ).Value = newName;
-
-        command.Parameters.Add(
-            "parentId",
-            OracleDbType.Int64
-        ).Value =
-            parentId.HasValue
-                ? parentId.Value
-                : DBNull.Value;
-
-        command.Parameters.Add(
-            "id",
-            OracleDbType.Int64
-        ).Value = folderId;
-
-        var count =
-            Convert.ToInt32(
-                await command.ExecuteScalarAsync()
-            );
-
-        if (count > 0)
-            throw new Exception(
-                $"Un dossier '{newName}' existe déjà."
-            );
-    }
-
-    // =========================================================
-    // 4. CHEMIN PHYSIQUE ACTUEL
-    // =========================================================
-
-    var oldPath =
-        await GetFolderPhysicalPathAsync(folderId);
-
-    if (!Directory.Exists(oldPath))
-    {
-        throw new DirectoryNotFoundException(
-            $"Le dossier physique n'existe pas : {oldPath}"
-        );
-    }
-
-    // =========================================================
-    // 5. NOUVEAU CHEMIN
-    // =========================================================
-
-    var parentPath =
-        Directory.GetParent(oldPath)?.FullName;
-
-    if (string.IsNullOrEmpty(parentPath))
-        throw new Exception(
-            "Impossible de déterminer le dossier parent."
-        );
-
-    var newPath =
-        Path.Combine(
-            parentPath,
-            SanitizeFolderName(newName)
-        );
-
-    // =========================================================
-    // 6. Vérifier que le nouveau dossier n'existe pas
-    // =========================================================
-
-    if (Directory.Exists(newPath))
-    {
-        throw new Exception(
-            $"Le dossier physique '{newName}' existe déjà."
-        );
-    }
-
-    // =========================================================
-    // 7. RENOMMER PHYSIQUEMENT
-    // =========================================================
-
-    try
-    {
-        Directory.Move(oldPath, newPath);
-    }
-    catch (Exception ex)
-    {
-        throw new Exception(
-            $"Impossible de renommer le dossier physiquement.\n" +
-            $"Ancien chemin : {oldPath}\n" +
-            $"Nouveau chemin : {newPath}\n" +
-            $"Erreur : {ex.Message}",
-            ex
-        );
-    }
-
-    // =========================================================
-    // 8. Transaction Oracle
-    // =========================================================
-
-    await using var transaction =
-        (OracleTransaction)await connection.BeginTransactionAsync();
-
-    try
-    {
-        // -----------------------------------------------------
-        // Modifier le nom du dossier
-        // -----------------------------------------------------
-
-        const string updateFolderSql = """
-            UPDATE FILE_FOLDERS
-            SET NAME = :name,
-                UPDATED_AT = SYSTIMESTAMP
-            WHERE ID = :id
-            """;
-
-        await using (var command =
-            new OracleCommand(
-                updateFolderSql,
-                connection))
-        {
-            command.Transaction = transaction;
-
-            command.Parameters.Add(
-                "name",
-                OracleDbType.Varchar2
-            ).Value = newName;
-
-            command.Parameters.Add(
-                "id",
-                OracleDbType.Int64
-            ).Value = folderId;
-
-            await command.ExecuteNonQueryAsync();
+        if (folderExists) {
+          setSelectedFolderId(folderId)
+          return
         }
+      }
 
-        // -----------------------------------------------------
-        // Modifier les chemins des fichiers
-        // -----------------------------------------------------
+      // -----------------------------------------
+      // Aucun dossier dans l'URL
+      // → prendre le dossier racine
+      // -----------------------------------------
 
-        const string updateFilesSql = """
-            UPDATE FILE_DOCUMENTS
-            SET FILE_PATH =
-                REPLACE(
-                    FILE_PATH,
-                    :oldPath,
-                    :newPath
-                ),
-                UPDATED_AT = SYSTIMESTAMP
-            WHERE FILE_PATH LIKE :oldPathLike
-            """;
+      const root = data.find(
+        folder => folder.parentId === null
+      )
 
-        await using (var command =
-            new OracleCommand(
-                updateFilesSql,
-                connection))
-        {
-            command.Transaction = transaction;
+      if (root) {
+        setSelectedFolderId(root.id)
 
-            command.Parameters.Add(
-                "oldPath",
-                OracleDbType.Varchar2
-            ).Value = oldPath;
-
-            command.Parameters.Add(
-                "newPath",
-                OracleDbType.Varchar2
-            ).Value = newPath;
-
-            command.Parameters.Add(
-                "oldPathLike",
-                OracleDbType.Varchar2
-            ).Value = oldPath + "%";
-
-            await command.ExecuteNonQueryAsync();
-        }
-
-        // -----------------------------------------------------
-        // Valider Oracle
-        // -----------------------------------------------------
-
-        await transaction.CommitAsync();
+        router.replace(
+          `${pathname}?folder=${root.id}`,
+          { scroll: false }
+        )
+      }
     }
-    catch
-    {
-        // Oracle a échoué :
-        // on remet le dossier physique à son ancien nom
-
-        try
-        {
-            if (Directory.Exists(newPath) &&
-                !Directory.Exists(oldPath))
-            {
-                Directory.Move(newPath, oldPath);
-            }
-        }
-        catch
-        {
-            // Ne pas masquer l'erreur Oracle
-        }
-
-        try
-        {
-            await transaction.RollbackAsync();
-        }
-        catch
-        {
-        }
-
-        throw;
+    catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erreur lors du chargement."
+      )
     }
+    finally {
+      setLoading(false)
+    }
+  }
+
+  load()
+}, [])
+
+⚠️ Important : si ton loadFolders() existe déjà et est utilisé ailleurs, ne supprime pas toute ta fonction sans me montrer ton fichier. Dans ce cas, on peut simplement modifier cette fonction.
+
+
+---
+
+4. Modifier handleSelectFolder
+
+Dans FileManager.tsx, tu dois avoir une fonction similaire à :
+
+function handleSelectFolder(id: number) {
+  setSelectedFolderId(id)
 }
 
-2. Très important : vérifie ton GetFolderPhysicalPathAsync
+Remplace-la par :
 
-Utilise exactement ceci :
+function handleSelectFolder(id: number) {
+  setSelectedFolderId(id)
 
-private async Task<string> GetFolderPhysicalPathAsync(long folderId)
-{
-    var folders =
-        new List<(string Name, long? ParentId)>();
-
-    await using var connection =
-        _factory.Create();
-
-    await connection.OpenAsync();
-
-    const string sql = """
-        SELECT NAME, PARENT_ID
-        FROM FILE_FOLDERS
-        START WITH ID = :folderId
-        CONNECT BY PRIOR PARENT_ID = ID
-        """;
-
-    await using var command =
-        new OracleCommand(sql, connection);
-
-    command.Parameters.Add(
-        "folderId",
-        OracleDbType.Int64
-    ).Value = folderId;
-
-    await using var reader =
-        await command.ExecuteReaderAsync();
-
-    while (await reader.ReadAsync())
-    {
-        folders.Add(
-            (
-                reader.GetString(0),
-                reader.IsDBNull(1)
-                    ? null
-                    : reader.GetInt64(1)
-            )
-        );
-    }
-
-    if (folders.Count == 0)
-        throw new Exception("Dossier introuvable.");
-
-    folders.Reverse();
-
-    var path = StorageRoot;
-
-    foreach (var folder in folders)
-    {
-        path = Path.Combine(
-            path,
-            SanitizeFolderName(folder.Name)
-        );
-    }
-
-    return path;
+  router.replace(
+    `${pathname}?folder=${id}`,
+    { scroll: false }
+  )
 }
 
-3. Et le StorageRoot
 
-Dans FolderService :
+---
 
-private string StorageRoot
-{
-    get
-    {
-        var path = Path.Combine(
-            _environment.ContentRootPath,
-            "Storage"
-        );
+5. Modifier le double-clic sur un dossier
 
-        Directory.CreateDirectory(path);
+Tu as probablement :
 
-        return path;
-    }
+function handleFolderDoubleClick(id: number) {
+  setSelectedFolderId(id)
 }
 
-4. Pourquoi cette version devrait fonctionner avec
+Remplace par :
 
-Dossier 1
-└── Dossier 2
-    └── Dossier 3
-        └── fichier.txt
+function handleFolderDoubleClick(id: number) {
+  setSelectedFolderId(id)
 
-Si tu renommes :
+  router.replace(
+    `${pathname}?folder=${id}`,
+    { scroll: false }
+  )
+}
 
-Dossier 1 → Dossier ABC
+Ainsi :
 
-Windows fait directement :
+clic       → URL mise à jour
+double clic → URL mise à jour
 
-Storage/
-└── Dossier ABC/
-    └── Dossier 2/
-        └── Dossier 3/
-            └── fichier.txt
 
-Puis Oracle fait :
+---
 
-Dossier 1
-       ↓
-Dossier ABC
+6. FolderTree.tsx
 
-et :
+Normalement aucune modification n'est nécessaire.
 
-FILE_PATH
+Il doit continuer à recevoir :
 
-passe par exemple de :
+<FolderTree
+  folders={folders}
+  selectedFolderId={selectedFolderId}
+  onSelect={handleSelectFolder}
+  onDoubleClick={handleFolderDoubleClick}
+  onMove={handleMoveFolder}
+/>
 
-C:\...\Storage\Dossier 1\Dossier 2\Dossier 3\fichier.txt
+Comme handleSelectFolder et handleFolderDoubleClick sont maintenant responsables de l'URL, le FolderTree n'a rien à connaître de next/navigation.
 
-à :
 
-C:\...\Storage\Dossier ABC\Dossier 2\Dossier 3\fichier.txt
+---
 
-Si ça échoue encore
+7. Breadcrumb.tsx
 
-Avec cette version, l'erreur indiquera maintenant exactement à quelle étape ça bloque.
+Même principe : idéalement aucun changement.
 
-En particulier, si tu obtiens :
+Tu as probablement :
 
-Impossible de renommer le dossier physiquement.
-Ancien chemin : ...
-Nouveau chemin : ...
-Erreur : ...
+onClick={() => onNavigate(folder.id)}
 
-envoie-moi le message Erreur : ... exact. C'est lui qui permettra d'identifier immédiatement si le problème vient du chemin, d'un fichier verrouillé, des droits Windows ou de la construction de l'arborescence.
+et dans FileManager :
+
+onNavigate={handleSelectFolder}
+
+Donc le clic sur :
+
+Accueil / D1 / D2
+
+mettra également l'URL à jour.
+
+
+---
+
+8. Résultat final
+
+Quand tu es ici :
+
+Accueil / D1 / D2
+
+l'adresse devient :
+
+http://localhost:3000/documents?folder=15
+
+Si tu fais :
+
+F5
+
+Next.js récupère :
+
+searchParams.get("folder")
+
+qui donne :
+
+15
+
+puis :
+
+setSelectedFolderId(15)
+
+et ton useEffect qui surveille le dossier :
+
+useEffect(() => {
+  if (selectedFolderId === null)
+    return
+
+  loadFiles(selectedFolderId)
+}, [selectedFolderId])
+
+recharge automatiquement les fichiers du dossier 15.
+
+
+---
+
+⚠️ Une petite correction importante
+
+Si ton projet utilise loadFolders() avec un useCallback, ne crée pas un deuxième système de chargement. Il vaut mieux intégrer cette logique directement dans ton code actuel.
+
+Si tu me colles ton FileManager.tsx actuel complet, je peux te le retourner entièrement corrigé, avec les changements placés exactement au bon endroit, sans casser ton upload, drag & drop, renommage, suppression, breadcrumb et arbre.

@@ -1,256 +1,142 @@
-Oui. Le problème vient probablement du fait que le renommage physique fonctionne, mais que FILE_DOCUMENTS.FILE_PATH n'est pas correctement recalculé après le changement du dossier.
+Oui. Tu peux supprimer toute la logique UpdateDescendantFilePathsAsync() et la remplacer par un simple REPLACE.
 
-Le plus robuste est de faire le renommage dans FolderService, puis de recalculer les chemins de tous les fichiers descendants après avoir changé le nom du dossier dans Oracle.
+Dans FolderService.cs, dans RenameAsync, remplace ton ancienne méthode par celle-ci :
 
-Voici la correction.
-
-1. RenameAsync complet
-
-Remplace ton RenameAsync par celui-ci :
-
-public async Task RenameAsync(
-    long folderId,
-    string newName)
+public async Task RenameAsync(long folderId, string newName)
 {
     if (string.IsNullOrWhiteSpace(newName))
-        throw new Exception(
-            "Le nom du dossier est obligatoire."
-        );
+        throw new Exception("Le nom du dossier est obligatoire.");
 
-    newName = SanitizeFolderName(newName.Trim());
+    newName = newName.Trim();
 
-    if (string.IsNullOrWhiteSpace(newName))
-        throw new Exception(
-            "Nom de dossier invalide."
-        );
+    await using var connection = _factory.Create();
+    await connection.OpenAsync();
 
+    await using var transaction =
+        (OracleTransaction)await connection.BeginTransactionAsync();
 
-    // ==========================================
-    // 1. RÉCUPÉRER LE DOSSIER
-    // ==========================================
-
-    Folder? folder = null;
-
-    await using (var connection = _factory.Create())
+    try
     {
-        await connection.OpenAsync();
-
-        const string sql = """
-            SELECT
-                ID,
-                NAME,
-                PARENT_ID,
-                CREATED_AT,
-                UPDATED_AT
+        // 1. Récupérer le dossier
+        const string selectSql = """
+            SELECT NAME, PARENT_ID
             FROM FILE_FOLDERS
             WHERE ID = :id
             """;
 
-        await using var command =
-            new OracleCommand(sql, connection);
+        string oldName;
+        long? parentId;
 
-        command.Parameters.Add(
-            "id",
-            OracleDbType.Int64
-        ).Value = folderId;
-
-        await using var reader =
-            await command.ExecuteReaderAsync();
-
-        if (await reader.ReadAsync())
+        await using (var command =
+            new OracleCommand(selectSql, connection))
         {
-            folder = new Folder
-            {
-                Id = reader.GetInt64(0),
+            command.Transaction = transaction;
 
-                Name = reader.GetString(1),
+            command.Parameters.Add(
+                "id",
+                OracleDbType.Int64
+            ).Value = folderId;
 
-                ParentId =
-                    reader.IsDBNull(2)
-                        ? null
-                        : reader.GetInt64(2),
+            await using var reader =
+                await command.ExecuteReaderAsync();
 
-                CreatedAt =
-                    reader.GetDateTime(3),
+            if (!await reader.ReadAsync())
+                throw new Exception("Dossier introuvable.");
 
-                UpdatedAt =
-                    reader.GetDateTime(4)
-            };
+            oldName = reader.GetString(0);
+
+            parentId = reader.IsDBNull(1)
+                ? null
+                : reader.GetInt64(1);
         }
-    }
 
-    if (folder == null)
-        throw new Exception(
-            "Dossier introuvable."
-        );
-
-
-    // ==========================================
-    // 2. VÉRIFIER SI LE NOM EST IDENTIQUE
-    // ==========================================
-
-    if (
-        string.Equals(
-            folder.Name,
-            newName,
-            StringComparison.OrdinalIgnoreCase
-        )
-    )
-    {
-        return;
-    }
-
-
-    // ==========================================
-    // 3. VÉRIFIER DOUBLON
-    // ==========================================
-
-    await using (var connection = _factory.Create())
-    {
-        await connection.OpenAsync();
-
-        const string sql = """
+        // 2. Vérifier qu'un autre dossier porte déjà ce nom
+        const string duplicateSql = """
             SELECT COUNT(*)
             FROM FILE_FOLDERS
-            WHERE ID <> :id
-              AND NAME = :name
+            WHERE NAME = :name
               AND (
                     PARENT_ID = :parentId
-                    OR (
-                        PARENT_ID IS NULL
-                        AND :parentId IS NULL
-                    )
+                    OR (PARENT_ID IS NULL AND :parentId IS NULL)
                   )
+              AND ID <> :id
             """;
 
-        await using var command =
-            new OracleCommand(sql, connection);
-
-        command.Parameters.Add(
-            "id",
-            OracleDbType.Int64
-        ).Value = folderId;
-
-        command.Parameters.Add(
-            "name",
-            OracleDbType.Varchar2
-        ).Value = newName;
-
-        command.Parameters.Add(
-            "parentId",
-            OracleDbType.Int64
-        ).Value =
-            folder.ParentId.HasValue
-                ? folder.ParentId.Value
-                : DBNull.Value;
-
-        var count =
-            Convert.ToInt32(
-                await command.ExecuteScalarAsync()
-            );
-
-        if (count > 0)
+        await using (var command =
+            new OracleCommand(duplicateSql, connection))
         {
-            throw new Exception(
-                $"Le dossier '{newName}' existe déjà."
-            );
+            command.Transaction = transaction;
+
+            command.Parameters.Add(
+                "name",
+                OracleDbType.Varchar2
+            ).Value = newName;
+
+            command.Parameters.Add(
+                "parentId",
+                OracleDbType.Int64
+            ).Value = parentId ?? (object)DBNull.Value;
+
+            command.Parameters.Add(
+                "id",
+                OracleDbType.Int64
+            ).Value = folderId;
+
+            var count =
+                Convert.ToInt32(
+                    await command.ExecuteScalarAsync()
+                );
+
+            if (count > 0)
+                throw new Exception(
+                    $"Un dossier nommé '{newName}' existe déjà."
+                );
         }
-    }
 
+        // 3. Calculer les anciens et nouveaux chemins physiques
+        var oldFolderPath =
+            await GetFolderPhysicalPathAsync(folderId);
 
-    // ==========================================
-    // 4. ANCIEN CHEMIN PHYSIQUE
-    // ==========================================
+        var newFolderPath =
+            Path.Combine(
+                Directory.GetParent(oldFolderPath)!.FullName,
+                SanitizeFolderName(newName)
+            );
 
-    var oldPath =
-        await GetFolderPhysicalPathAsync(
-            folderId
+        // 4. Vérifier que le dossier physique existe
+        if (!Directory.Exists(oldFolderPath))
+            throw new DirectoryNotFoundException(
+                $"Le dossier physique n'existe pas : {oldFolderPath}"
+            );
+
+        // 5. Vérifier que le nouveau chemin n'existe pas
+        if (Directory.Exists(newFolderPath))
+            throw new Exception(
+                $"Le dossier physique '{newName}' existe déjà."
+            );
+
+        // 6. Renommer physiquement
+        Directory.Move(
+            oldFolderPath,
+            newFolderPath
         );
-
-
-    if (!Directory.Exists(oldPath))
-    {
-        throw new DirectoryNotFoundException(
-            $"Le dossier physique n'existe pas : {oldPath}"
-        );
-    }
-
-
-    // ==========================================
-    // 5. NOUVEAU CHEMIN PHYSIQUE
-    // ==========================================
-
-    var parentPath =
-        folder.ParentId.HasValue
-            ? await GetFolderPhysicalPathAsync(
-                folder.ParentId.Value
-            )
-            : StorageRoot;
-
-
-    var newPath =
-        Path.Combine(
-            parentPath,
-            newName
-        );
-
-
-    if (Directory.Exists(newPath))
-    {
-        throw new IOException(
-            $"Le dossier physique existe déjà : {newPath}"
-        );
-    }
-
-
-    // ==========================================
-    // 6. RENOMMER PHYSIQUEMENT
-    // ==========================================
-
-    Directory.Move(
-        oldPath,
-        newPath
-    );
-
-
-    try
-    {
-        // ======================================
-        // 7. TRANSACTION ORACLE
-        // ======================================
-
-        await using var connection =
-            _factory.Create();
-
-        await connection.OpenAsync();
-
-        await using var transaction =
-            (OracleTransaction)
-            await connection.BeginTransactionAsync();
 
         try
         {
-            // ----------------------------------
-            // RENOMMER LE DOSSIER
-            // ----------------------------------
-
+            // 7. Mettre à jour le nom dans Oracle
             const string updateFolderSql = """
                 UPDATE FILE_FOLDERS
-                SET
-                    NAME = :name,
+                SET NAME = :name,
                     UPDATED_AT = SYSTIMESTAMP
                 WHERE ID = :id
                 """;
 
-            await using (
-                var command =
-                    new OracleCommand(
-                        updateFolderSql,
-                        connection
-                    ))
+            await using (var command =
+                new OracleCommand(
+                    updateFolderSql,
+                    connection))
             {
-                command.Transaction =
-                    transaction;
+                command.Transaction = transaction;
 
                 command.Parameters.Add(
                     "name",
@@ -265,388 +151,112 @@ public async Task RenameAsync(
                 await command.ExecuteNonQueryAsync();
             }
 
+            // 8. Mettre à jour les FILE_PATH
+            //    de tous les fichiers du dossier
+            //    et de ses sous-dossiers.
+            const string updatePathsSql = """
+                UPDATE FILE_DOCUMENTS
+                SET FILE_PATH = REPLACE(
+                    FILE_PATH,
+                    :oldPath,
+                    :newPath
+                )
+                WHERE FILE_PATH LIKE :oldPathLike
+                """;
 
-            // ----------------------------------
-            // METTRE À JOUR LES FILE_PATH
-            // ----------------------------------
+            await using (var command =
+                new OracleCommand(
+                    updatePathsSql,
+                    connection))
+            {
+                command.Transaction = transaction;
 
-            await UpdateDescendantFilePathsAsync(
-                connection,
-                transaction,
-                folderId
-            );
+                command.Parameters.Add(
+                    "oldPath",
+                    OracleDbType.Varchar2
+                ).Value = oldFolderPath;
 
+                command.Parameters.Add(
+                    "newPath",
+                    OracleDbType.Varchar2
+                ).Value = newFolderPath;
 
-            // ----------------------------------
-            // COMMIT
-            // ----------------------------------
+                command.Parameters.Add(
+                    "oldPathLike",
+                    OracleDbType.Varchar2
+                ).Value = oldFolderPath + "%";
 
+                await command.ExecuteNonQueryAsync();
+            }
+
+            // 9. Valider la transaction
             await transaction.CommitAsync();
         }
         catch
         {
-            await transaction.RollbackAsync();
+            // Si Oracle échoue,
+            // on remet le dossier à son ancien nom
+            if (Directory.Exists(newFolderPath) &&
+                !Directory.Exists(oldFolderPath))
+            {
+                Directory.Move(
+                    newFolderPath,
+                    oldFolderPath
+                );
+            }
+
             throw;
         }
     }
     catch
     {
-        // ======================================
-        // ANNULER LE RENOMMAGE PHYSIQUE
-        // ======================================
-
-        if (
-            Directory.Exists(newPath) &&
-            !Directory.Exists(oldPath)
-        )
+        try
         {
-            Directory.Move(
-                newPath,
-                oldPath
-            );
+            await transaction.RollbackAsync();
+        }
+        catch
+        {
+            // Ignorer l'erreur de rollback
         }
 
         throw;
     }
 }
 
+Tu peux supprimer complètement
 
----
+Cette ancienne méthode n'est plus nécessaire :
 
-2. Méthode qui met à jour FILE_PATH
+UpdateDescendantFilePathsAsync(...)
 
-Utilise cette version :
+Et surtout, tu n'as plus besoin de faire :
 
-private async Task UpdateDescendantFilePathsAsync(
-    OracleConnection connection,
-    OracleTransaction transaction,
-    long folderId)
-{
-    // ==========================================
-    // RÉCUPÉRER TOUS LES FICHIERS DU DOSSIER
-    // ET DE SES SOUS-DOSSIERS
-    // ==========================================
+GetFolderPhysicalPathAsync(file.FolderId)
 
-    const string sql = """
-        SELECT
-            ID,
-            FOLDER_ID,
-            FILE_NAME
-        FROM FILE_DOCUMENTS
-        WHERE FOLDER_ID IN
-        (
-            SELECT ID
-            FROM FILE_FOLDERS
-            START WITH ID = :folderId
-            CONNECT BY PRIOR ID = PARENT_ID
-        )
-        """;
+pour chaque fichier.
 
-    var files =
-        new List<(
-            long Id,
-            long FolderId,
-            string FileName
-        )>();
+Le fonctionnement devient simplement :
 
+Renommer D1 → D1_Nouveau
+        │
+        ├── Directory.Move()
+        │
+        ├── UPDATE FILE_FOLDERS
+        │      NAME = 'D1_Nouveau'
+        │
+        └── UPDATE FILE_DOCUMENTS
+               FILE_PATH =
+               REPLACE(FILE_PATH, ancien chemin, nouveau chemin)
 
-    await using (
-        var command =
-            new OracleCommand(
-                sql,
-                connection
-            ))
-    {
-        command.Transaction =
-            transaction;
+Ainsi, si tu as :
 
-        command.Parameters.Add(
-            "folderId",
-            OracleDbType.Int64
-        ).Value = folderId;
+D1/
+ ├── fichier1.pdf
+ └── D2/
+      └── fichier2.pdf
 
-        await using var reader =
-            await command.ExecuteReaderAsync();
+les deux FILE_PATH sont automatiquement corrigés, y compris ceux des sous-dossiers.
 
-        while (await reader.ReadAsync())
-        {
-            files.Add(
-                (
-                    reader.GetInt64(0),
-                    reader.GetInt64(1),
-                    reader.GetString(2)
-                )
-            );
-        }
-    }
 
+-------
 
-    // ==========================================
-    // RECALCULER LE PATH
-    // ==========================================
-
-    foreach (var file in files)
-    {
-        var folderPath =
-            await GetFolderPhysicalPathAsync(
-                file.FolderId
-            );
-
-        var newFilePath =
-            Path.Combine(
-                folderPath,
-                file.FileName
-            );
-
-
-        const string updateSql = """
-            UPDATE FILE_DOCUMENTS
-            SET
-                FILE_PATH = :filePath,
-                UPDATED_AT = SYSTIMESTAMP
-            WHERE ID = :id
-            """;
-
-        await using var command =
-            new OracleCommand(
-                updateSql,
-                connection
-            );
-
-        command.Transaction =
-            transaction;
-
-        command.Parameters.Add(
-            "filePath",
-            OracleDbType.Varchar2
-        ).Value = newFilePath;
-
-        command.Parameters.Add(
-            "id",
-            OracleDbType.Int64
-        ).Value = file.Id;
-
-        await command.ExecuteNonQueryAsync();
-    }
-}
-
-
----
-
-3. GetFolderPhysicalPathAsync
-
-Il faut surtout que cette méthode utilise la base de données actuelle.
-
-private async Task<string> GetFolderPhysicalPathAsync(
-    long folderId)
-{
-    var folders =
-        new List<(string Name, long? ParentId)>();
-
-    await using var connection =
-        _factory.Create();
-
-    await connection.OpenAsync();
-
-    const string sql = """
-        SELECT
-            NAME,
-            PARENT_ID
-        FROM FILE_FOLDERS
-        START WITH ID = :folderId
-        CONNECT BY PRIOR PARENT_ID = ID
-        """;
-
-    await using var command =
-        new OracleCommand(
-            sql,
-            connection
-        );
-
-    command.Parameters.Add(
-        "folderId",
-        OracleDbType.Int64
-    ).Value = folderId;
-
-    await using var reader =
-        await command.ExecuteReaderAsync();
-
-    while (await reader.ReadAsync())
-    {
-        folders.Add(
-            (
-                reader.GetString(0),
-                reader.IsDBNull(1)
-                    ? null
-                    : reader.GetInt64(1)
-            )
-        );
-    }
-
-    if (folders.Count == 0)
-    {
-        throw new Exception(
-            "Dossier introuvable."
-        );
-    }
-
-    folders.Reverse();
-
-    var path = StorageRoot;
-
-    foreach (var folder in folders)
-    {
-        path = Path.Combine(
-            path,
-            SanitizeFolderName(
-                folder.Name
-            )
-        );
-    }
-
-    return path;
-}
-
-
----
-
-4. Pourquoi cette version fonctionne
-
-Supposons :
-
-FILE_FOLDERS
-
-ID    NAME        PARENT_ID
-1     Documents   NULL
-2     RH          1
-3     Contrats    2
-4     CDI         3
-
-Et :
-
-FILE_DOCUMENTS
-
-ID    FOLDER_ID    FILE_NAME
-10    4            contrat.pdf
-11    4            contrat2.pdf
-
-Physiquement :
-
-Storage/
-└── Documents/
-    └── RH/
-        └── Contrats/
-            └── CDI/
-                ├── contrat.pdf
-                └── contrat2.pdf
-
-Tu renommes :
-
-CDI
-↓
-CDI_2026
-
-Étape 1
-
-Physiquement :
-
-CDI
-↓
-CDI_2026
-
-Étape 2
-
-Oracle :
-
-UPDATE FILE_FOLDERS
-SET NAME = 'CDI_2026'
-WHERE ID = 4;
-
-devient :
-
-4    CDI_2026    3
-
-Étape 3
-
-La méthode GetFolderPhysicalPathAsync(4) est appelée après la modification Oracle.
-
-Elle retourne maintenant :
-
-Storage/Documents/RH/Contrats/CDI_2026
-
-Donc :
-
-FILE_DOCUMENTS
-
-contrat.pdf
-↓
-Storage/Documents/RH/Contrats/CDI_2026/contrat.pdf
-
-contrat2.pdf
-↓
-Storage/Documents/RH/Contrats/CDI_2026/contrat2.pdf
-
-
----
-
-⚠️ Un problème important dans cette architecture
-
-Il y a cependant un point que je te recommande fortement de corriger : FILE_PATH devient une donnée dérivée.
-
-Tu as actuellement :
-
-FILE_FOLDERS
-    NAME
-    PARENT_ID
-
-FILE_DOCUMENTS
-    FILE_NAME
-    FILE_PATH
-
-Le FILE_PATH dépend entièrement de :
-
-Parent + Folder.Name + File.Name
-
-Donc si tu fais :
-
-Renommer
-Déplacer
-Déplacer le parent
-Renommer le parent
-
-il faut constamment mettre à jour FILE_PATH.
-
-Pour ton système, je recommande plutôt :
-
-FILE_DOCUMENTS
---------------------
-ID
-FOLDER_ID
-FILE_NAME
-STORED_NAME
-CONTENT_TYPE
-FILE_SIZE
-CREATED_AT
-UPDATED_AT
-
-sans FILE_PATH.
-
-Puis le chemin physique est toujours calculé :
-
-StorageRoot
-   +
-chemin des dossiers Oracle
-   +
-FILE_NAME
-
-Ainsi :
-
-Documents/RH/Contrats/CDI/contrat.pdf
-
-devient automatiquement :
-
-Documents/RH/Contrats/CDI_2026/contrat.pdf
-
-sans modifier aucune ligne de FILE_DOCUMENTS.
-
-C'est beaucoup plus sûr pour ton besoin de synchronisation Oracle ↔ stockage physique.

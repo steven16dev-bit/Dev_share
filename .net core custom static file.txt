@@ -1,0 +1,85 @@
+Oui, exactement. Tu peux avoir :
+
+D:\MonAPI\storage\
+├── Contrats\
+│   └── contrat.pdf
+└── Rapports\
+    └── rapport.pdf
+
+mais exposer publiquement le contenu sous :
+
+https://domainname.com/documents/Contrats/contrat.pdf
+
+Le nom physique storage n'a aucune obligation d'apparaître dans l'URL. Il suffit de faire le mapping dans ASP.NET Core :
+
+using Microsoft.Extensions.FileProviders;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+
+var app = builder.Build();
+
+var storagePath = Path.Combine(
+    builder.Environment.ContentRootPath,
+    "storage"
+);
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(storagePath),
+    RequestPath = "/documents"
+});
+
+app.MapControllers();
+
+app.Run();
+
+Résultat
+
+Physiquement :
+
+storage/
+└── Finance/
+    └── 2026/
+        └── rapport.pdf
+
+Accessible par :
+
+https://domainname.com/documents/Finance/2026/rapport.pdf
+
+Donc :
+
+storage  →  /documents
+
+Le dossier storage reste interne au serveur.
+
+Pour ton projet de gestionnaire de fichiers
+
+Je te recommande cette architecture :
+
+API/
+├── Controllers/
+├── Services/
+├── storage/                 ← physique
+│   ├── RH/
+│   │   ├── contrats/
+│   │   └── notes/
+│   └── Finance/
+│       └── rapports/
+└── Program.cs
+
+Et dans la base :
+
+folder: Finance/rapports
+file:   rapport.pdf
+
+Puis l'URL est construite :
+
+/documents/Finance/rapports/rapport.pdf
+
+Attention toutefois : UseStaticFiles rend les fichiers accessibles sans passer par ton contrôleur/API. Si tu veux appliquer des privilèges par dossier (par exemple certains admins peuvent accéder à certains dossiers et d'autres non), il vaut mieux ne pas exposer storage directement avec UseStaticFiles. On peut faire un endpoint sécurisé du type :
+
+GET /documents/{*path}
+
+qui vérifie les permissions avant de retourner le PDF. C'est probablement plus adapté à ton système.

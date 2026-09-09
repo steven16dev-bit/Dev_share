@@ -1,134 +1,55 @@
-Oui. Dans ton gestionnaire de fichiers actuel, on peut modifier l’upload pour accepter plusieurs fichiers en une seule fois, tout en gardant le dossier sélectionné et la pagination.
+Oui. Pour le drag & drop de plusieurs fichiers dans FileList, onDrop doit récupérer event.dataTransfer.files puis envoyer tous les fichiers au même dossier.
 
-Le point important : il faut modifier le frontend et le backend.
+FileList.tsx
 
-1. Backend — FilesController.cs
-
-Si ton endpoint actuel reçoit un seul fichier :
-
-[HttpPost("upload/{folderId}")]
-public async Task<IActionResult> Upload(
-    long folderId,
-    IFormFile file)
-
-remplace-le par :
-
-[HttpPost("upload/{folderId}")]
-public async Task<IActionResult> Upload(
-    long folderId,
-    List<IFormFile> files)
-{
-    if (files == null || files.Count == 0)
-        return BadRequest("Aucun fichier sélectionné.");
-
-    var uploaded = new List<string>();
-    var errors = new List<string>();
-
-    foreach (var file in files)
-    {
-        try
-        {
-            await _service.UploadAsync(folderId, file);
-            uploaded.Add(file.FileName);
-        }
-        catch (FileAlreadyExistsException)
-        {
-            errors.Add(
-                $"Le fichier '{file.FileName}' existe déjà."
-            );
-        }
-        catch (Exception ex)
-        {
-            errors.Add(
-                $"{file.FileName} : {ex.Message}"
-            );
-        }
-    }
-
-    return Ok(new
-    {
-        uploaded,
-        errors
-    });
+interface FileListProps {
+  files: DocumentFile[]
+  onDrop?: (files: File[]) => void
 }
-
-Ainsi, si 10 fichiers sont envoyés et que 2 existent déjà, les 8 autres peuvent quand même être enregistrés.
-
-
----
-
-2. Frontend — UploadZone.tsx
-
-L'input doit avoir multiple :
-
-<input
-  type="file"
-  multiple
-  onChange={handleFilesSelected}
-  accept="*/*,.txt,text/plain"
-/>
 
 Puis :
 
-async function handleFilesSelected(
-  event: React.ChangeEvent<HTMLInputElement>
+function handleDrop(
+  event: React.DragEvent<HTMLDivElement>
 ) {
-  const files = event.target.files
+  event.preventDefault()
 
-  if (!files || files.length === 0)
-    return
-
-  await uploadFiles(Array.from(files))
-
-  event.target.value = ""
-}
-
-
----
-
-3. Upload de plusieurs fichiers
-
-Dans ton API frontend :
-
-export async function uploadFiles(
-  folderId: number,
-  files: File[]
-) {
-  const formData = new FormData()
-
-  for (const file of files) {
-    formData.append("files", file)
-  }
-
-  const response = await fetch(
-    `${API}/files/upload/${folderId}`,
-    {
-      method: "POST",
-      body: formData
-    }
+  const droppedFiles = Array.from(
+    event.dataTransfer.files
   )
 
-  if (!response.ok) {
-    throw new Error(
-      "Erreur lors de l'upload des fichiers."
-    )
-  }
+  if (droppedFiles.length === 0)
+    return
 
-  return response.json()
+  onDrop?.(droppedFiles)
 }
 
-⚠️ Le nom doit être files dans les deux côtés :
+Sur le conteneur :
 
-Frontend                  Backend
-────────────────────────────────────────
-formData.append("files")  List<IFormFile> files
+<div
+  className="file-list"
+  onDragOver={(event) => {
+    event.preventDefault()
+  }}
+  onDrop={handleDrop}
+>
+  {files.map((file) => (
+    <div key={file.id} className="file-card">
+      {file.fileName}
+    </div>
+  ))}
+</div>
 
+Dans FileManager.tsx
 
----
+Passe la fonction d'upload :
 
-4. Dans FileManager.tsx
+<FileList
+  files={files}
+  onDrop={uploadFilesToFolder}
+/>
 
-Comme tu avais le problème de selectedFolderId, je te conseille de passer explicitement le dossier :
+Et :
 
 async function uploadFilesToFolder(files: File[]) {
   if (selectedFolderId === null) {
@@ -163,23 +84,28 @@ async function uploadFilesToFolder(files: File[]) {
   }
 }
 
-Tu auras alors :
+Important
 
-Sélection de 5 fichiers → upload des 5 → actualisation de la page courante.
+Cela permet :
 
-Et ton système conserve bien :
+PC
+ │
+ ├── contrat.pdf
+ ├── rapport.pdf
+ ├── image.jpg
+ ├── document.txt
+ └── fichier.xlsx
+          │
+          │ Drag & Drop
+          ▼
+     FileList
+          │
+          ▼
+    uploadFilesToFolder()
+          │
+          ▼
+      dossier sélectionné
 
-📁 le dossier sélectionné
+Donc un seul onDrop peut envoyer 1, 5, 20 fichiers ou plus.
 
-📄 plusieurs fichiers
-
-🚫 détection des doublons
-
-📄 noms originaux
-
-📂 stockage physique dans le bon dossier
-
-🔄 rafraîchissement de la pagination API
-
-
-Si tu veux, je peux aussi te donner la version avec **barre de progression individuelle pour chaque fichier** (ex. contrat.pdf 100%, rapport.pdf 65%, etc.).
+Si tu veux également le drag & drop d'un fichier/dossier de FileList vers un dossier de FolderTree, c'est un peu différent : il faut utiliser dataTransfer.setData() avec l'ID du fichier et gérer onDrop côté FolderTree.

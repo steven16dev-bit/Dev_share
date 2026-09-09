@@ -1,127 +1,148 @@
-Oui. Les deux problèmes viennent probablement du même point : le chargement des fichiers n'est pas correctement synchronisé avec page / pageSize, et l'upload doit recharger la page courante.
+Oui. Dans ton gestionnaire de fichiers actuel, on peut modifier l’upload pour accepter plusieurs fichiers en une seule fois, tout en gardant le dossier sélectionné et la pagination.
 
-Voici les changements exacts.
+Le point important : il faut modifier le frontend et le backend.
 
-1. FileManager.tsx — loadFiles
+1. Backend — FilesController.cs
 
-Remplace ta fonction loadFiles par :
+Si ton endpoint actuel reçoit un seul fichier :
 
-async function loadFiles(
-  folderId: number,
-  currentPage: number,
-  currentPageSize: number
+[HttpPost("upload/{folderId}")]
+public async Task<IActionResult> Upload(
+    long folderId,
+    IFormFile file)
+
+remplace-le par :
+
+[HttpPost("upload/{folderId}")]
+public async Task<IActionResult> Upload(
+    long folderId,
+    List<IFormFile> files)
+{
+    if (files == null || files.Count == 0)
+        return BadRequest("Aucun fichier sélectionné.");
+
+    var uploaded = new List<string>();
+    var errors = new List<string>();
+
+    foreach (var file in files)
+    {
+        try
+        {
+            await _service.UploadAsync(folderId, file);
+            uploaded.Add(file.FileName);
+        }
+        catch (FileAlreadyExistsException)
+        {
+            errors.Add(
+                $"Le fichier '{file.FileName}' existe déjà."
+            );
+        }
+        catch (Exception ex)
+        {
+            errors.Add(
+                $"{file.FileName} : {ex.Message}"
+            );
+        }
+    }
+
+    return Ok(new
+    {
+        uploaded,
+        errors
+    });
+}
+
+Ainsi, si 10 fichiers sont envoyés et que 2 existent déjà, les 8 autres peuvent quand même être enregistrés.
+
+
+---
+
+2. Frontend — UploadZone.tsx
+
+L'input doit avoir multiple :
+
+<input
+  type="file"
+  multiple
+  onChange={handleFilesSelected}
+  accept="*/*,.txt,text/plain"
+/>
+
+Puis :
+
+async function handleFilesSelected(
+  event: React.ChangeEvent<HTMLInputElement>
 ) {
+  const files = event.target.files
+
+  if (!files || files.length === 0)
+    return
+
+  await uploadFiles(Array.from(files))
+
+  event.target.value = ""
+}
+
+
+---
+
+3. Upload de plusieurs fichiers
+
+Dans ton API frontend :
+
+export async function uploadFiles(
+  folderId: number,
+  files: File[]
+) {
+  const formData = new FormData()
+
+  for (const file of files) {
+    formData.append("files", file)
+  }
+
+  const response = await fetch(
+    `${API}/files/upload/${folderId}`,
+    {
+      method: "POST",
+      body: formData
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      "Erreur lors de l'upload des fichiers."
+    )
+  }
+
+  return response.json()
+}
+
+⚠️ Le nom doit être files dans les deux côtés :
+
+Frontend                  Backend
+────────────────────────────────────────
+formData.append("files")  List<IFormFile> files
+
+
+---
+
+4. Dans FileManager.tsx
+
+Comme tu avais le problème de selectedFolderId, je te conseille de passer explicitement le dossier :
+
+async function uploadFilesToFolder(files: File[]) {
+  if (selectedFolderId === null) {
+    setError("Veuillez sélectionner un dossier.")
+    return
+  }
+
   try {
     setLoading(true)
-
-    const data = await getFiles(
-      folderId,
-      currentPage,
-      currentPageSize
-    )
-
-    setFiles(data.items)
-    setTotalItems(data.totalItems)
-    setTotalPages(data.totalPages)
-  }
-  catch (err) {
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Impossible de charger les fichiers."
-    )
-  }
-  finally {
-    setLoading(false)
-  }
-}
-
-2. useEffect — chargement des fichiers
-
-Remplace celui qui charge les fichiers par :
-
-useEffect(() => {
-  if (selectedFolderId === null)
-    return
-
-  loadFiles(
-    selectedFolderId,
-    page,
-    pageSize
-  )
-}, [selectedFolderId, page, pageSize])
-
-C'est cette partie qui fait que les fichiers changent quand page change.
-
-
----
-
-3. changePage
-
-Utilise exactement :
-
-function changePage(newPage: number) {
-  if (newPage < 1 || newPage > totalPages)
-    return
-
-  const params = new URLSearchParams(
-    searchParams.toString()
-  )
-
-  params.set("page", String(newPage))
-
-  router.push(
-    `${pathname}?${params.toString()}`,
-    { scroll: false }
-  )
-}
-
-J'utilise ici router.push() plutôt que replace() : c'est plus pratique pour naviguer entre les pages avec les boutons précédent/suivant.
-
-
----
-
-4. Upload — très important
-
-Ton ancien upload fait probablement :
-
-await uploadFile(selectedFolderId, file)
-
-setMessage("Fichier importé avec succès.")
-
-await loadFiles(selectedFolderId)
-
-Il faut maintenant passer page et pageSize.
-
-Remplace par :
-
-await uploadFile(selectedFolderId, file)
-
-setMessage("Fichier importé avec succès.")
-
-await loadFiles(
-  selectedFolderId,
-  page,
-  pageSize
-)
-
-Donc ta fonction d'upload devrait ressembler à :
-
-async function handleUpload(file: File) {
-  if (selectedFolderId === null)
-    return
-
-  try {
     setError("")
-    setMessage("Upload en cours...")
 
-    await uploadFile(
+    await uploadFiles(
       selectedFolderId,
-      file
-    )
-
-    setMessage(
-      `Fichier "${file.name}" importé avec succès.`
+      files
     )
 
     await loadFiles(
@@ -134,53 +155,31 @@ async function handleUpload(file: File) {
     setError(
       err instanceof Error
         ? err.message
-        : "Erreur pendant l'upload."
+        : "Erreur lors de l'upload."
     )
+  }
+  finally {
+    setLoading(false)
   }
 }
 
-5. Vérifie getFiles dans lib/api.ts
+Tu auras alors :
 
-Il doit être exactement comme ceci :
+Sélection de 5 fichiers → upload des 5 → actualisation de la page courante.
 
-export async function getFiles(
-  folderId: number,
-  page: number,
-  pageSize: number
-): Promise<PagedResult<DocumentFile>> {
+Et ton système conserve bien :
 
-  const response = await fetch(
-    `${API}/files/folder/${folderId}?page=${page}&pageSize=${pageSize}`,
-    {
-      cache: "no-store"
-    }
-  )
+📁 le dossier sélectionné
 
-  if (!response.ok) {
-    throw new Error(
-      "Impossible de charger les fichiers."
-    )
-  }
+📄 plusieurs fichiers
 
-  return response.json()
-}
+🚫 détection des doublons
 
-6. Vérifie surtout l'appel API
+📄 noms originaux
 
-Quand tu cliques sur Next, tu dois voir dans le navigateur :
+📂 stockage physique dans le bon dossier
 
-GET /api/files/folder/15?page=2&pageSize=20
+🔄 rafraîchissement de la pagination API
 
-Puis :
 
-GET /api/files/folder/15?page=3&pageSize=20
-
-Si l'URL change mais que tu vois toujours :
-
-GET /api/files/folder/15?page=1&pageSize=20
-
-alors le problème est dans getFiles().
-
-Si l'API reçoit bien page=2 mais retourne les mêmes fichiers, alors le problème est côté Oracle / OFFSET ... FETCH.
-
-Le plus important : ne garde aucun files.slice() dans FileManager.tsx. La pagination est maintenant entièrement faite par l'API.
+Si tu veux, je peux aussi te donner la version avec **barre de progression individuelle pour chaque fichier** (ex. contrat.pdf 100%, rapport.pdf 65%, etc.).

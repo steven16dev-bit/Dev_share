@@ -1,111 +1,228 @@
-Oui. Pour le drag & drop de plusieurs fichiers dans FileList, onDrop doit récupérer event.dataTransfer.files puis envoyer tous les fichiers au même dossier.
+Oui. Pour ton portail, je te conseille de faire en sorte que Next.js ne connaisse pas directement le stockage des fichiers. Les documents viennent de l’API .NET, qui elle-même gère Oracle et le stockage physique.
 
-FileList.tsx
+Architecture
 
-interface FileListProps {
-  files: DocumentFile[]
-  onDrop?: (files: File[]) => void
+Next.js
+                       │
+                       │ GET
+                       ▼
+              .NET Core Web API
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+         Oracle 19c          Stockage fichiers
+         métadonnées          PDF / DOCX / ...
+
+Par exemple :
+
+GET /api/documents
+GET /api/documents/10
+GET /api/documents/10/download
+GET /api/documents/10/preview
+
+1. API retourne les métadonnées
+
+Par exemple :
+
+[
+  {
+    "id": 10,
+    "name": "Rapport annuel 2025.pdf",
+    "type": "PDF",
+    "year": 2025,
+    "folderId": 3,
+    "folderName": "Rapports",
+    "size": 2456789
+  },
+  {
+    "id": 11,
+    "name": "Note de service.pdf",
+    "type": "PDF",
+    "year": 2026,
+    "folderId": 4,
+    "folderName": "Notes",
+    "size": 1254789
+  }
+]
+
+Je recommande de ne pas retourner le fichier PDF dans cette première requête.
+
+
+---
+
+2. Next.js récupère les documents
+
+services/documentService.js
+
+import { apiFetch } from "./api";
+
+export async function getDocuments() {
+    return apiFetch("/documents");
 }
 
-Puis :
-
-function handleDrop(
-  event: React.DragEvent<HTMLDivElement>
-) {
-  event.preventDefault()
-
-  const droppedFiles = Array.from(
-    event.dataTransfer.files
-  )
-
-  if (droppedFiles.length === 0)
-    return
-
-  onDrop?.(droppedFiles)
+export async function getDocument(id) {
+    return apiFetch(`/documents/${id}`);
 }
 
-Sur le conteneur :
+Puis dans ta page :
 
-<div
-  className="file-list"
-  onDragOver={(event) => {
-    event.preventDefault()
-  }}
-  onDrop={handleDrop}
->
-  {files.map((file) => (
-    <div key={file.id} className="file-card">
-      {file.fileName}
-    </div>
-  ))}
-</div>
+"use client";
 
-Dans FileManager.tsx
+import { useEffect, useState } from "react";
+import { getDocuments } from "@/services/documentService";
 
-Passe la fonction d'upload :
+export default function DocumentsPage() {
+    const [documents, setDocuments] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-<FileList
-  files={files}
-  onDrop={uploadFilesToFolder}
+    useEffect(() => {
+        async function loadDocuments() {
+            try {
+                const data = await getDocuments();
+                setDocuments(data);
+            } catch (error) {
+                console.error(error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadDocuments();
+    }, []);
+
+    if (loading) {
+        return <p>Chargement...</p>;
+    }
+
+    return (
+        <div>
+            {documents.map((doc) => (
+                <div key={doc.id}>
+                    {doc.name}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+
+---
+
+3. Pour afficher réellement le PDF
+
+C'est ici qu'il faut faire une distinction importante.
+
+L'API peut avoir :
+
+GET /api/documents/10/preview
+
+qui retourne directement :
+
+Content-Type: application/pdf
+
+Dans Next.js, tu peux alors afficher :
+
+<iframe
+    src={`${process.env.NEXT_PUBLIC_API_URL}/documents/10/preview`}
+    width="100%"
+    height="700px"
 />
 
-Et :
+Donc :
 
-async function uploadFilesToFolder(files: File[]) {
-  if (selectedFolderId === null) {
-    setError("Veuillez sélectionner un dossier.")
-    return
-  }
+Utilisateur clique sur PDF
+          ↓
+Next.js
+          ↓
+GET /api/documents/10/preview
+          ↓
+.NET Core
+          ↓
+récupère le fichier
+          ↓
+retourne application/pdf
+          ↓
+PDF Viewer du navigateur
 
-  try {
-    setLoading(true)
-    setError("")
 
-    await uploadFiles(
-      selectedFolderId,
-      files
-    )
+---
 
-    await loadFiles(
-      selectedFolderId,
-      page,
-      pageSize
-    )
-  }
-  catch (err) {
-    setError(
-      err instanceof Error
-        ? err.message
-        : "Erreur lors de l'upload."
-    )
-  }
-  finally {
-    setLoading(false)
-  }
-}
+4. Pour télécharger
 
-Important
+Même principe :
 
-Cela permet :
+GET /api/documents/10/download
 
-PC
- │
- ├── contrat.pdf
- ├── rapport.pdf
- ├── image.jpg
- ├── document.txt
- └── fichier.xlsx
-          │
-          │ Drag & Drop
-          ▼
-     FileList
-          │
-          ▼
-    uploadFilesToFolder()
-          │
-          ▼
-      dossier sélectionné
+Dans Next.js :
 
-Donc un seul onDrop peut envoyer 1, 5, 20 fichiers ou plus.
+<a
+    href={`${process.env.NEXT_PUBLIC_API_URL}/documents/${doc.id}/download`}
+    target="_blank"
+>
+    Télécharger
+</a>
 
-Si tu veux également le drag & drop d'un fichier/dossier de FileList vers un dossier de FolderTree, c'est un peu différent : il faut utiliser dataTransfer.setData() avec l'ID du fichier et gérer onDrop côté FolderTree.
+
+---
+
+5. Où mettre le PDF ?
+
+Je recommande de ne pas mettre les PDF dans Oracle pour ton portail, sauf besoin particulier.
+
+Par exemple :
+
+D:\PortalStorage\
+│
+├── documents\
+│   ├── 2026\
+│   │   ├── rapport-2025.pdf
+│   │   └── note-service.pdf
+│   │
+│   └── 2025\
+│       └── rapport-annuel.pdf
+
+Oracle conserve les informations :
+
+DOCUMENT
+-------------------------
+ID
+NAME
+FILE_NAME
+FILE_PATH
+FILE_TYPE
+FILE_SIZE
+YEAR
+FOLDER_ID
+CREATED_AT
+
+L'API .NET est la seule qui connaît le chemin physique.
+
+
+---
+
+6. Pour ton système de dossiers
+
+Comme tu as déjà un système avec dossiers / sous-dossiers, je ferais plutôt :
+
+GET /api/folders
+GET /api/folders/{id}
+GET /api/folders/{id}/documents
+
+GET /api/documents/{id}
+GET /api/documents/{id}/preview
+GET /api/documents/{id}/download
+
+Ainsi, lorsque l'utilisateur clique sur :
+
+📁 Juridique
+   ├── 📁 Contrats
+   ├── 📁 Décisions
+   └── 📁 Notes
+
+Next.js demande simplement :
+
+GET /api/folders/15/documents
+
+et reçoit les documents du dossier.
+
+C'est cette architecture que je recommande pour ton projet, car elle correspond directement à ton système actuel de dossiers, sous-dossiers, pagination, filtres et aperçu PDF.

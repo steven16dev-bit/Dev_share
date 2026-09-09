@@ -83,3 +83,94 @@ Attention toutefois : UseStaticFiles rend les fichiers accessibles sans passer p
 GET /documents/{*path}
 
 qui vérifie les permissions avant de retourner le PDF. C'est probablement plus adapté à ton système.
+
+
+-----
+
+Oui. Dans une ASP.NET Core Web API, si tes PDF sont stockés dans un dossier, tu peux les rendre accessibles directement avec :
+
+https://domainname.com/documents/nompdf.pdf
+
+1. Structure du dossier
+
+Par exemple :
+
+MonApi/
+├── Program.cs
+├── appsettings.json
+└── Documents/
+    ├── contrat.pdf
+    ├── rapport.pdf
+    └── decision.pdf
+
+2. Dans Program.cs
+
+Tu peux utiliser UseStaticFiles avec un dossier physique personnalisé :
+
+using Microsoft.Extensions.FileProviders;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+
+var app = builder.Build();
+
+var documentsPath = Path.Combine(builder.Environment.ContentRootPath, "Documents");
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(documentsPath),
+    RequestPath = "/documents"
+});
+
+app.MapControllers();
+
+app.Run();
+
+Maintenant :
+
+Documents/contrat.pdf
+
+sera accessible par :
+
+https://domainname.com/documents/contrat.pdf
+
+3. Si ton dossier est ailleurs
+
+Par exemple :
+
+D:\ERP\Documents
+
+tu peux faire :
+
+var documentsPath = @"D:\ERP\Documents";
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(documentsPath),
+    RequestPath = "/documents"
+});
+
+Ainsi :
+
+D:\ERP\Documents\rapport.pdf
+
+→
+
+https://domainname.com/documents/rapport.pdf
+
+⚠️ Important pour ton système de gestion documentaire
+
+Dans ton cas, puisque tu as des dossiers/sous-dossiers et du renommage, je te conseille de ne pas enregistrer l'URL complète en base de données.
+
+Par exemple, stocker :
+
+Documents/Contrats/2026/contrat.pdf
+
+plutôt que :
+
+https://domainname.com/documents/Contrats/2026/contrat.pdf
+
+Comme ça, si ton domaine change ou si tu changes la configuration de l'API, tes données restent valides.
+
+Et surtout, pour ton problème précédent de rename d'un dossier contenant des sous-dossiers, on peut concevoir le système pour que le path physique et l'URL /documents/... soient automatiquement recalculés lors du renommage.

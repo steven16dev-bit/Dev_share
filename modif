@@ -1,56 +1,153 @@
-Oui. Pour ton portail, je te conseille de faire en sorte que Next.js ne connaisse pas directement le stockage des fichiers. Les documents viennent de l’API .NET, qui elle-même gère Oracle et le stockage physique.
+Oui. Dans ton cas, il faut remplacer les données locales de documents.js par deux API : une pour les dossiers et une pour les documents.
 
-Architecture
+Je te conseille cette architecture :
 
 Next.js
-                       │
-                       │ GET
-                       ▼
-              .NET Core Web API
-                       │
-             ┌─────────┴─────────┐
-             ▼                   ▼
-         Oracle 19c          Stockage fichiers
-         métadonnées          PDF / DOCX / ...
+│
+├── components/
+│   └── documents/
+│       ├── DocumentSidebar.jsx
+│       ├── DocumentCard.jsx
+│       └── DocumentViewer.jsx
+│
+├── services/
+│   ├── api.js
+│   ├── folderService.js
+│   └── documentService.js
+│
+└── app/
+    └── documents/
+        └── page.jsx
+             │
+             │ HTTP
+             ▼
+       .NET Core API
+             │
+       ┌─────┴─────┐
+       ▼           ▼
+    Dossiers    Documents
+       │           │
+       └─────┬─────┘
+             ▼
+          Oracle 19c
 
-Par exemple :
+1. API .NET
+
+Je partirais sur ces endpoints :
+
+GET /api/folders
+GET /api/folders/{id}
 
 GET /api/documents
-GET /api/documents/10
-GET /api/documents/10/download
-GET /api/documents/10/preview
+GET /api/documents/{id}
+GET /api/folders/{folderId}/documents
 
-1. API retourne les métadonnées
+GET /api/documents/{id}/preview
+GET /api/documents/{id}/download
 
 Par exemple :
 
+GET /api/folders
+
 [
-  {
-    "id": 10,
-    "name": "Rapport annuel 2025.pdf",
-    "type": "PDF",
-    "year": 2025,
-    "folderId": 3,
-    "folderName": "Rapports",
-    "size": 2456789
-  },
-  {
-    "id": 11,
-    "name": "Note de service.pdf",
-    "type": "PDF",
-    "year": 2026,
-    "folderId": 4,
-    "folderName": "Notes",
-    "size": 1254789
-  }
+    {
+        "id": 1,
+        "name": "Ressources humaines",
+        "parentId": null,
+        "documentCount": 15
+    },
+    {
+        "id": 2,
+        "name": "Juridique",
+        "parentId": null,
+        "documentCount": 25
+    },
+    {
+        "id": 3,
+        "name": "Contrats",
+        "parentId": 2,
+        "documentCount": 10
+    }
 ]
 
-Je recommande de ne pas retourner le fichier PDF dans cette première requête.
+Le parentId permet de construire ton arbre :
+
+📁 Ressources humaines
+📁 Juridique
+   └── 📁 Contrats
 
 
 ---
 
-2. Next.js récupère les documents
+2. API Documents
+
+GET /api/folders/3/documents
+
+[
+    {
+        "id": 101,
+        "name": "Contrat fournisseur 2026.pdf",
+        "type": "PDF",
+        "year": 2026,
+        "size": 2456789,
+        "folderId": 3
+    },
+    {
+        "id": 102,
+        "name": "Contrat fournisseur 2025.pdf",
+        "type": "PDF",
+        "year": 2025,
+        "size": 1856321,
+        "folderId": 3
+    }
+]
+
+
+---
+
+3. Côté Next.js
+
+services/api.js
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+export async function apiFetch(endpoint, options = {}) {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {}),
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+.env.local
+
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+
+
+---
+
+services/folderService.js
+
+import { apiFetch } from "./api";
+
+export async function getFolders() {
+    return apiFetch("/folders");
+}
+
+export async function getFolder(id) {
+    return apiFetch(`/folders/${id}`);
+}
+
+
+---
 
 services/documentService.js
 
@@ -60,42 +157,74 @@ export async function getDocuments() {
     return apiFetch("/documents");
 }
 
+export async function getDocumentsByFolder(folderId) {
+    return apiFetch(`/folders/${folderId}/documents`);
+}
+
 export async function getDocument(id) {
     return apiFetch(`/documents/${id}`);
 }
 
-Puis dans ta page :
+
+---
+
+4. Dans DocumentsPage
+
+Tu peux maintenant avoir :
 
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDocuments } from "@/services/documentService";
+import { getFolders } from "@/services/folderService";
+import { getDocumentsByFolder } from "@/services/documentService";
 
 export default function DocumentsPage() {
+
+    const [folders, setFolders] = useState([]);
     const [documents, setDocuments] = useState([]);
-    const [loading, setLoading] = useState(true);
+
+    const [selectedFolderId, setSelectedFolderId] = useState(null);
 
     useEffect(() => {
-        async function loadDocuments() {
-            try {
-                const data = await getDocuments();
-                setDocuments(data);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        loadDocuments();
+        loadFolders();
     }, []);
 
-    if (loading) {
-        return <p>Chargement...</p>;
+    async function loadFolders() {
+        try {
+            const data = await getFolders();
+            setFolders(data);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    async function handleFolderClick(folderId) {
+        try {
+            setSelectedFolderId(folderId);
+
+            const data = await getDocumentsByFolder(folderId);
+
+            setDocuments(data);
+        } catch (error) {
+            console.error(error);
+        }
     }
 
     return (
         <div>
+            {/* arbre des dossiers */}
+
+            {folders.map((folder) => (
+                <button
+                    key={folder.id}
+                    onClick={() => handleFolderClick(folder.id)}
+                >
+                    📁 {folder.name}
+                </button>
+            ))}
+
+            {/* documents */}
+
             {documents.map((doc) => (
                 <div key={doc.id}>
                     {doc.name}
@@ -105,124 +234,110 @@ export default function DocumentsPage() {
     );
 }
 
+Mais je ne te conseille pas de garder toute cette logique dans page.jsx.
+
+Dans ton projet, on devrait plutôt avoir :
+
+DocumentsPage
+      │
+      ├── DocumentSidebar
+      │       │
+      │       └── FolderTree
+      │
+      ├── DocumentToolbar
+      │
+      ├── DocumentList
+      │
+      └── DocumentViewer
+
+Et DocumentsPage orchestre simplement les données.
+
 
 ---
 
-3. Pour afficher réellement le PDF
+5. Très important pour ton cas
 
-C'est ici qu'il faut faire une distinction importante.
+Tu m'avais indiqué que tu voulais abandonner selectedFolder et conserver uniquement :
 
-L'API peut avoir :
+const [selectedFolderId, setSelectedFolderId] = useState(null);
 
-GET /api/documents/10/preview
+Je garderais cette approche.
 
-qui retourne directement :
+Lorsque l'utilisateur clique sur un dossier :
 
-Content-Type: application/pdf
+selectedFolderId = 15
 
-Dans Next.js, tu peux alors afficher :
+Puis :
+
+const documents = await getDocumentsByFolder(15);
+
+Donc pas besoin de conserver tout l'objet dossier.
+
+
+---
+
+6. Pour le PDF
+
+Le document reçu par l'API peut avoir :
+
+{
+    "id": 101,
+    "name": "Contrat.pdf",
+    "folderId": 3
+}
+
+Puis ton viewer utilise :
+
+const pdfUrl =
+    `${process.env.NEXT_PUBLIC_API_URL}/documents/${doc.id}/preview`;
+
+Et :
 
 <iframe
-    src={`${process.env.NEXT_PUBLIC_API_URL}/documents/10/preview`}
-    width="100%"
-    height="700px"
+    src={pdfUrl}
+    title={doc.name}
 />
 
-Donc :
+Ainsi Next.js ne manipule jamais le chemin physique du fichier.
 
-Utilisateur clique sur PDF
-          ↓
-Next.js
-          ↓
-GET /api/documents/10/preview
-          ↓
-.NET Core
-          ↓
-récupère le fichier
-          ↓
-retourne application/pdf
-          ↓
-PDF Viewer du navigateur
+D:\PortalStorage\documents\juridique\contrat.pdf
+                     ↑
+                 .NET Core
+                     ↑
+                 Next.js
+
+C'est beaucoup plus sécurisé que d'exposer directement le dossier de stockage.
 
 
 ---
 
-4. Pour télécharger
+Architecture finale que je te recommande
 
-Même principe :
+NEXT.JS
+                            │
+             ┌──────────────┴──────────────┐
+             │                             │
+       folderService                 documentService
+             │                             │
+             └──────────────┬──────────────┘
+                            │
+                       .NET CORE API
+                            │
+                ┌───────────┴───────────┐
+                │                       │
+           FolderController       DocumentController
+                │                       │
+                └───────────┬───────────┘
+                            │
+                         Services
+                            │
+                       Repository
+                            │
+                     ┌──────┴──────┐
+                     │             │
+                  Oracle       File Storage
 
-GET /api/documents/10/download
-
-Dans Next.js :
-
-<a
-    href={`${process.env.NEXT_PUBLIC_API_URL}/documents/${doc.id}/download`}
-    target="_blank"
->
-    Télécharger
-</a>
-
-
----
-
-5. Où mettre le PDF ?
-
-Je recommande de ne pas mettre les PDF dans Oracle pour ton portail, sauf besoin particulier.
-
-Par exemple :
-
-D:\PortalStorage\
-│
-├── documents\
-│   ├── 2026\
-│   │   ├── rapport-2025.pdf
-│   │   └── note-service.pdf
-│   │
-│   └── 2025\
-│       └── rapport-annuel.pdf
-
-Oracle conserve les informations :
-
-DOCUMENT
--------------------------
-ID
-NAME
-FILE_NAME
-FILE_PATH
-FILE_TYPE
-FILE_SIZE
-YEAR
-FOLDER_ID
-CREATED_AT
-
-L'API .NET est la seule qui connaît le chemin physique.
+C'est cette structure que je te recommande de mettre en place maintenant. Ensuite on peut reprendre ton composant Documents actuel et le modifier sans perdre tes fonctions existantes : arbre dossiers, sous-dossiers, renommage, upload multiple, drag & drop, filtres, pagination et aperçu PDF.
 
 
----
-
-6. Pour ton système de dossiers
-
-Comme tu as déjà un système avec dossiers / sous-dossiers, je ferais plutôt :
-
-GET /api/folders
-GET /api/folders/{id}
-GET /api/folders/{id}/documents
-
-GET /api/documents/{id}
-GET /api/documents/{id}/preview
-GET /api/documents/{id}/download
-
-Ainsi, lorsque l'utilisateur clique sur :
-
-📁 Juridique
-   ├── 📁 Contrats
-   ├── 📁 Décisions
-   └── 📁 Notes
-
-Next.js demande simplement :
-
-GET /api/folders/15/documents
-
-et reçoit les documents du dossier.
-
-C'est cette architecture que je recommande pour ton projet, car elle correspond directement à ton système actuel de dossiers, sous-dossiers, pagination, filtres et aperçu PDF.
+-----

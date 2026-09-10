@@ -341,3 +341,79 @@ C'est cette structure que je te recommande de mettre en place maintenant. Ensuit
 
 
 -----
+
+Oui. Si tu veux typer proprement les réponses de l’API, je te conseille de créer deux types séparés : DocumentFile et DocumentFolder.
+
+Organisation
+
+types/
+├── DocumentFile.js
+└── DocumentFolder.js
+
+Mais comme ton projet est en TypeScript, je recommande plutôt :
+
+types/
+├── document-file.ts
+└── document-folder.ts
+
+types/document-file.ts
+
+export interface DocumentFile {
+    id: number;
+    name: string;
+    type: string;
+    year: number;
+    size: number;
+    folderId: number;
+}
+
+types/document-folder.ts
+
+export interface DocumentFolder {
+    id: number;
+    name: string;
+    parentId: number | null;
+    documentCount: number;
+}
+
+Ensuite ton service devient typé :
+
+import { apiFetch } from "./api";
+import { DocumentFile } from "@/types/document-file";
+
+export async function getDocumentsByFolder(
+    folderId: number
+): Promise<DocumentFile[]> {
+    return apiFetch(`/folders/${folderId}/documents`);
+}
+
+Et pour les dossiers :
+
+import { apiFetch } from "./api";
+import { DocumentFolder } from "@/types/document-folder";
+
+export async function getFolders(): Promise<DocumentFolder[]> {
+    return apiFetch("/folders");
+}
+
+Je recommande même cette structure
+
+types/
+├── document/
+│   ├── DocumentFile.ts
+│   ├── DocumentFolder.ts
+│   └── index.ts
+
+index.ts :
+
+export type { DocumentFile } from "./DocumentFile";
+export type { DocumentFolder } from "./DocumentFolder";
+
+Tu peux alors importer les deux simplement :
+
+import type {
+    DocumentFile,
+    DocumentFolder
+} from "@/types/document";
+
+Et surtout, les propriétés de DocumentFile et DocumentFolder doivent correspondre exactement aux DTO que nous allons définir côté .NET Core. C'est mieux de commencer par définir ces deux modèles API avant de modifier ton composant Documents.

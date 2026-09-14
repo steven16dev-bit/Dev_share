@@ -1,0 +1,379 @@
+Oui. Dans la maquette, je remplacerais les cards de fichiers par un vrai tableau type explorateur de fichiers.
+
+Le principe :
+
+┌───┬────────────────────┬────────┬──────────┬──────────────────┬─────────┐
+│ □ │ Nom                │ Type   │ Taille   │ Modification     │ Actions │
+├───┼────────────────────┼────────┼──────────┼──────────────────┼─────────┤
+│ □ │ 📁 Contrats        │ Dossier│ —        │ 15 mai 2025      │ ⋮       │
+│ □ │ 📁 Paie            │ Dossier│ —        │ 12 mai 2025      │ ⋮       │
+│ □ │ 🔴 Contrat_CDI.pdf │ PDF    │ 245 Ko   │ 10 mai 2025      │ ↓ ⋮     │
+│ □ │ 🔵 Note_service.docx│ DOCX  │ 1,2 Mo   │ 8 mai 2025       │ ↓ ⋮     │
+└───┴────────────────────┴────────┴──────────┴──────────────────┴─────────┘
+
+1. Structure de FileList.tsx
+
+Remplace la partie qui affiche les cards par :
+
+<div className="files-table-wrapper">
+
+  <table className="files-table">
+
+    <thead>
+      <tr>
+        <th className="file-check-column">
+          <input type="checkbox" />
+        </th>
+
+        <th>Nom</th>
+        <th>Type</th>
+        <th>Taille</th>
+        <th>Date de modification</th>
+        <th className="file-actions-column">
+          Actions
+        </th>
+      </tr>
+    </thead>
+
+    <tbody>
+
+      {files.map((file) => (
+        <tr key={file.id}>
+
+          <td>
+            <input type="checkbox" />
+          </td>
+
+          <td>
+            <div className="file-table-name">
+
+              <div className="file-table-icon">
+                📄
+              </div>
+
+              <span
+                title={file.fileName}
+              >
+                {file.fileName}
+              </span>
+
+            </div>
+          </td>
+
+          <td>
+            <span className="file-type-badge">
+              {file.contentType ?? "Fichier"}
+            </span>
+          </td>
+
+          <td>
+            {formatFileSize(file.fileSize)}
+          </td>
+
+          <td>
+            {formatDate(file.updatedAt)}
+          </td>
+
+          <td>
+            <div className="file-table-actions">
+
+              <button
+                type="button"
+                title="Télécharger"
+              >
+                ↓
+              </button>
+
+              <button
+                type="button"
+                title="Plus d'actions"
+              >
+                ⋮
+              </button>
+
+            </div>
+          </td>
+
+        </tr>
+      ))}
+
+    </tbody>
+
+  </table>
+
+</div>
+
+
+---
+
+2. CSS du tableau
+
+.files-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.files-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  table-layout: fixed;
+
+  font-size: 13px;
+  color: #334155;
+}
+
+/* =========================
+   HEADER
+========================= */
+
+.files-table thead {
+  background: #f8fafc;
+}
+
+.files-table th {
+  height: 42px;
+
+  padding: 0 12px;
+
+  border-bottom: 1px solid #e5eaf1;
+
+  color: #64748b;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  text-align: left;
+
+  white-space: nowrap;
+}
+
+.files-table th:first-child {
+  width: 42px;
+}
+
+.files-table th:nth-child(2) {
+  width: 36%;
+}
+
+.files-table th:nth-child(3) {
+  width: 100px;
+}
+
+.files-table th:nth-child(4) {
+  width: 100px;
+}
+
+.files-table th:nth-child(5) {
+  width: 170px;
+}
+
+.files-table th:last-child {
+  width: 90px;
+  text-align: center;
+}
+
+/* =========================
+   ROW
+========================= */
+
+.files-table tbody tr {
+  height: 52px;
+
+  border-bottom: 1px solid #eef1f5;
+
+  transition:
+    background-color 0.15s ease;
+}
+
+.files-table tbody tr:hover {
+  background: #f8fbff;
+}
+
+.files-table td {
+  padding: 0 12px;
+
+  vertical-align: middle;
+
+  white-space: nowrap;
+}
+
+/* =========================
+   FILE NAME
+========================= */
+
+.file-table-name {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  min-width: 0;
+}
+
+.file-table-name span {
+  min-width: 0;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  color: #1e293b;
+
+  font-weight: 600;
+}
+
+.file-table-icon {
+  width: 30px;
+  height: 30px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 7px;
+
+  background: #f1f5f9;
+
+  font-size: 16px;
+}
+
+/* =========================
+   TYPE
+========================= */
+
+.file-type-badge {
+  display: inline-flex;
+  align-items: center;
+
+  height: 24px;
+
+  padding: 0 9px;
+
+  border-radius: 7px;
+
+  background: #eef2f7;
+
+  color: #64748b;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* =========================
+   ACTIONS
+========================= */
+
+.file-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 4px;
+}
+
+.file-table-actions button {
+  width: 30px;
+  height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #64748b;
+
+  cursor: pointer;
+
+  font-size: 17px;
+
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.file-table-actions button:hover {
+  background: #edf2f7;
+  color: #1769ff;
+}
+
+/* =========================
+   CHECKBOX
+========================= */
+
+.files-table input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+
+  cursor: pointer;
+
+  accent-color: #1769ff;
+}
+
+.file-check-column {
+  text-align: center !important;
+}
+
+3. Pour afficher PDF, DOCX, XLSX
+
+Je ne conseille pas d'afficher directement :
+
+file.contentType
+
+car tu risques d'avoir :
+
+application/pdf
+application/vnd.openxmlformats...
+
+À la place :
+
+function getFileType(fileName: string) {
+  const extension =
+    fileName
+      .split(".")
+      .pop()
+      ?.toUpperCase()
+
+  return extension || "FILE"
+}
+
+Puis :
+
+<span className="file-type-badge">
+  {getFileType(file.fileName)}
+</span>
+
+Tu obtiendras :
+
+PDF
+DOCX
+XLSX
+PNG
+TXT
+ZIP
+
+Résultat
+
+Ton gestionnaire aura maintenant une séparation très nette :
+
+┌──────────────────┐     ┌─────────────────────────────────────────────┐
+│ 📁 Dossiers      │     │ 📁 RH                         Télécharger   │
+│                  │     ├─────────────────────────────────────────────┤
+│ ⌄ Racine         │     │ □ Nom          Type  Taille  Modification  │
+│   ⌄ RH       12  │     ├─────────────────────────────────────────────┤
+│     Contrats 5   │     │ □ 📁 Contrats  Dossier  —     15 mai       │
+│     Paie     3   │     │ □ 📁 Paie      Dossier  —     12 mai       │
+│                  │     │ □ 📄 Contrat    PDF      245K  10 mai       │
+│   Finance    8   │     │ □ 📄 Note      DOCX     1.2M  8 mai        │
+│   Juridique  6   │     │                                             │
+└──────────────────┘     └─────────────────────────────────────────────┘
+
+C'est beaucoup plus adapté à ton système de fichiers que les cards, surtout avec la pagination, les actions et la sélection multiple.

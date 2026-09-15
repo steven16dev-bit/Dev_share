@@ -1,3 +1,1638 @@
-It looks like image creation is temporarily unavailable. Do you want to try something else?
+Oui. Voici une version complète et directement testable en Next.js, avec :
 
-La génération d’images est momentanément indisponible parce que la limite Instant a été atteinte, et le modèle Mini actuel est uniquement textuel.
+CRUD complet en mémoire (Ajouter, Modifier, Supprimer)
+
+popup sans changement de page
+
+recherche
+
+filtre par catégorie
+
+pagination
+
+champ de mots-clés sous forme de tags
+
+CSS Module
+
+données fictives
+
+responsive
+
+confirmation avant suppression
+
+
+> Ici, les données restent en mémoire côté navigateur. Un rafraîchissement de la page réinitialise les données fictives. Ensuite, on pourra remplacer les fonctions CRUD par tes appels à l'API .NET Core.
+
+
+
+1. page.tsx
+
+"use client";
+
+import { useState } from "react";
+import ActualitesTable, {
+  Actualite,
+} from "./ActualitesTable";
+import ActualiteModal from "./ActualiteModal";
+
+const actualitesInitiales: Actualite[] = [
+  {
+    id: 1,
+    titre: "Nouvelle réforme administrative",
+    description:
+      "Une nouvelle réforme vise à moderniser les services administratifs.",
+    paragraphe:
+      "Cette réforme permettra d'améliorer la qualité des services proposés aux citoyens et de simplifier plusieurs procédures administratives.",
+    categorie: "Politique",
+    date: "2026-09-14",
+    motsCles: ["Réforme", "Administration", "Algérie"],
+  },
+  {
+    id: 2,
+    titre: "Développement du numérique",
+    description:
+      "Le gouvernement accélère la transformation numérique des administrations.",
+    paragraphe:
+      "Plusieurs projets numériques sont actuellement en cours afin de faciliter l'accès aux services publics et améliorer leur efficacité.",
+    categorie: "Technologie",
+    date: "2026-09-12",
+    motsCles: ["Digital", "Technologie", "Innovation"],
+  },
+  {
+    id: 3,
+    titre: "Nouveau projet économique",
+    description:
+      "Un nouveau projet devrait contribuer au développement économique.",
+    paragraphe:
+      "Le projet prévoit la création de nouvelles opportunités d'investissement et plusieurs centaines de nouveaux emplois.",
+    categorie: "Économie",
+    date: "2026-09-10",
+    motsCles: ["Économie", "Investissement", "Emploi"],
+  },
+  {
+    id: 4,
+    titre: "Conférence internationale",
+    description:
+      "Une conférence internationale sera organisée prochainement.",
+    paragraphe:
+      "La conférence réunira plusieurs représentants et experts autour des enjeux économiques et technologiques actuels.",
+    categorie: "Événement",
+    date: "2026-09-08",
+    motsCles: ["Conférence", "International", "Événement"],
+  },
+  {
+    id: 5,
+    titre: "Modernisation des infrastructures",
+    description:
+      "Plusieurs infrastructures seront modernisées dans différentes régions.",
+    paragraphe:
+      "Le programme de modernisation concerne notamment les infrastructures publiques et les équipements administratifs.",
+    categorie: "Développement",
+    date: "2026-09-05",
+    motsCles: ["Infrastructure", "Développement", "Travaux"],
+  },
+  {
+    id: 6,
+    titre: "Programme de formation",
+    description:
+      "Un nouveau programme de formation destiné aux jeunes.",
+    paragraphe:
+      "Le programme propose plusieurs formations spécialisées permettant aux jeunes d'améliorer leurs compétences professionnelles.",
+    categorie: "Formation",
+    date: "2026-09-02",
+    motsCles: ["Formation", "Jeunesse", "Compétences"],
+  },
+  {
+    id: 7,
+    titre: "Partenariat technologique",
+    description:
+      "Un nouveau partenariat dans le domaine technologique.",
+    paragraphe:
+      "Ce partenariat permettra de développer plusieurs solutions numériques destinées aux entreprises et administrations.",
+    categorie: "Technologie",
+    date: "2026-08-30",
+    motsCles: ["Partenariat", "Tech", "Innovation"],
+  },
+];
+
+export default function ActualitesPage() {
+  const [actualites, setActualites] =
+    useState<Actualite[]>(actualitesInitiales);
+
+  const [modalOuvert, setModalOuvert] = useState(false);
+
+  const [actualiteSelectionnee, setActualiteSelectionnee] =
+    useState<Actualite | null>(null);
+
+  const ouvrirAjout = () => {
+    setActualiteSelectionnee(null);
+    setModalOuvert(true);
+  };
+
+  const ouvrirModification = (actualite: Actualite) => {
+    setActualiteSelectionnee(actualite);
+    setModalOuvert(true);
+  };
+
+  const fermerModal = () => {
+    setModalOuvert(false);
+    setActualiteSelectionnee(null);
+  };
+
+  const enregistrerActualite = (
+    actualite: Omit<Actualite, "id"> & { id?: number }
+  ) => {
+    if (actualite.id) {
+      // UPDATE
+      setActualites((ancienneListe) =>
+        ancienneListe.map((item) =>
+          item.id === actualite.id
+            ? {
+                ...actualite,
+                id: actualite.id!,
+              }
+            : item
+        )
+      );
+    } else {
+      // CREATE
+      const nouvelId =
+        actualites.length > 0
+          ? Math.max(...actualites.map((item) => item.id)) + 1
+          : 1;
+
+      const nouvelleActualite: Actualite = {
+        ...actualite,
+        id: nouvelId,
+      };
+
+      setActualites((ancienneListe) => [
+        nouvelleActualite,
+        ...ancienneListe,
+      ]);
+    }
+
+    fermerModal();
+  };
+
+  const supprimerActualite = (id: number) => {
+    const confirmation = window.confirm(
+      "Voulez-vous vraiment supprimer cette actualité ?"
+    );
+
+    if (!confirmation) return;
+
+    setActualites((ancienneListe) =>
+      ancienneListe.filter((item) => item.id !== id)
+    );
+  };
+
+  return (
+    <main className={styles.page}>
+      <ActualitesTable
+        actualites={actualites}
+        onAjouter={ouvrirAjout}
+        onModifier={ouvrirModification}
+        onSupprimer={supprimerActualite}
+      />
+
+      {modalOuvert && (
+        <ActualiteModal
+          actualite={actualiteSelectionnee}
+          onFermer={fermerModal}
+          onEnregistrer={enregistrerActualite}
+        />
+      )}
+    </main>
+  );
+}
+
+⚠️ Il manque l'import du CSS dans ce fichier. Ajoute simplement en haut :
+
+import styles from "./actualites.module.css";
+
+Donc le début final est :
+
+"use client";
+
+import { useState } from "react";
+import ActualitesTable, {
+  Actualite,
+} from "./ActualitesTable";
+import ActualiteModal from "./ActualiteModal";
+import styles from "./actualites.module.css";
+
+
+---
+
+2. ActualitesTable.tsx
+
+"use client";
+
+import { useMemo, useState } from "react";
+import styles from "./actualites.module.css";
+
+export interface Actualite {
+  id: number;
+  titre: string;
+  description: string;
+  paragraphe: string;
+  categorie: string;
+  date: string;
+  motsCles: string[];
+}
+
+interface Props {
+  actualites: Actualite[];
+  onAjouter: () => void;
+  onModifier: (actualite: Actualite) => void;
+  onSupprimer: (id: number) => void;
+}
+
+const PAGE_SIZE = 5;
+
+export default function ActualitesTable({
+  actualites,
+  onAjouter,
+  onModifier,
+  onSupprimer,
+}: Props) {
+  const [recherche, setRecherche] = useState("");
+  const [categorie, setCategorie] = useState("Toutes");
+  const [page, setPage] = useState(1);
+
+  const categories = useMemo(() => {
+    return [
+      "Toutes",
+      ...Array.from(
+        new Set(actualites.map((actualite) => actualite.categorie))
+      ),
+    ];
+  }, [actualites]);
+
+  const actualitesFiltrees = useMemo(() => {
+    const terme = recherche.toLowerCase().trim();
+
+    return actualites.filter((actualite) => {
+      const correspondRecherche =
+        !terme ||
+        actualite.titre.toLowerCase().includes(terme) ||
+        actualite.description.toLowerCase().includes(terme) ||
+        actualite.motsCles.some((mot) =>
+          mot.toLowerCase().includes(terme)
+        );
+
+      const correspondCategorie =
+        categorie === "Toutes" ||
+        actualite.categorie === categorie;
+
+      return correspondRecherche && correspondCategorie;
+    });
+  }, [actualites, recherche, categorie]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(actualitesFiltrees.length / PAGE_SIZE)
+  );
+
+  const actualitesPage = actualitesFiltrees.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
+
+  const changerRecherche = (value: string) => {
+    setRecherche(value);
+    setPage(1);
+  };
+
+  const changerCategorie = (value: string) => {
+    setCategorie(value);
+    setPage(1);
+  };
+
+  const formaterDate = (date: string) => {
+    return new Intl.DateTimeFormat("fr-FR").format(
+      new Date(date)
+    );
+  };
+
+  return (
+    <section className={styles.container}>
+      {/* HEADER */}
+      <div className={styles.header}>
+        <div>
+          <h1 className={styles.title}>Actualités</h1>
+          <p className={styles.subtitle}>
+            Gestion des actualités du portail
+          </p>
+        </div>
+
+        <button
+          className={styles.addButton}
+          onClick={onAjouter}
+        >
+          <span>+</span>
+          Ajouter
+        </button>
+      </div>
+
+      {/* FILTRES */}
+      <div className={styles.toolbar}>
+        <div className={styles.searchContainer}>
+          <span className={styles.searchIcon}>⌕</span>
+
+          <input
+            type="text"
+            value={recherche}
+            onChange={(e) =>
+              changerRecherche(e.target.value)
+            }
+            placeholder="Rechercher une actualité..."
+            className={styles.searchInput}
+          />
+        </div>
+
+        <select
+          value={categorie}
+          onChange={(e) =>
+            changerCategorie(e.target.value)
+          }
+          className={styles.categorySelect}
+        >
+          {categories.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* TABLE */}
+      <div className={styles.tableContainer}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>Titre</th>
+              <th>Catégorie</th>
+              <th>Date</th>
+              <th>Mots clés</th>
+              <th className={styles.actionsHeader}>
+                Actions
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {actualitesPage.length > 0 ? (
+              actualitesPage.map((actualite) => (
+                <tr key={actualite.id}>
+                  <td>
+                    <div className={styles.titleCell}>
+                      <strong>{actualite.titre}</strong>
+
+                      <span>
+                        {actualite.description}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td>
+                    <span className={styles.categoryBadge}>
+                      {actualite.categorie}
+                    </span>
+                  </td>
+
+                  <td className={styles.dateCell}>
+                    {formaterDate(actualite.date)}
+                  </td>
+
+                  <td>
+                    <div className={styles.tags}>
+                      {actualite.motsCles
+                        .slice(0, 3)
+                        .map((mot) => (
+                          <span
+                            key={mot}
+                            className={styles.tag}
+                          >
+                            {mot}
+                          </span>
+                        ))}
+                    </div>
+                  </td>
+
+                  <td>
+                    <div className={styles.actions}>
+                      <button
+                        className={`${styles.actionButton} ${styles.editButton}`}
+                        onClick={() =>
+                          onModifier(actualite)
+                        }
+                        title="Modifier"
+                      >
+                        ✎
+                      </button>
+
+                      <button
+                        className={`${styles.actionButton} ${styles.deleteButton}`}
+                        onClick={() =>
+                          onSupprimer(actualite.id)
+                        }
+                        title="Supprimer"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={5}
+                  className={styles.empty}
+                >
+                  Aucune actualité trouvée.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* FOOTER */}
+      <div className={styles.footer}>
+        <span className={styles.resultCount}>
+          {actualitesFiltrees.length} actualité
+          {actualitesFiltrees.length > 1 ? "s" : ""}
+        </span>
+
+        {totalPages > 1 && (
+          <div className={styles.pagination}>
+            <button
+              disabled={page === 1}
+              onClick={() =>
+                setPage((ancienne) => ancienne - 1)
+              }
+              className={styles.pageButton}
+            >
+              ‹
+            </button>
+
+            {Array.from(
+              { length: totalPages },
+              (_, index) => index + 1
+            ).map((numero) => (
+              <button
+                key={numero}
+                onClick={() => setPage(numero)}
+                className={`${styles.pageButton} ${
+                  page === numero
+                    ? styles.activePage
+                    : ""
+                }`}
+              >
+                {numero}
+              </button>
+            ))}
+
+            <button
+              disabled={page === totalPages}
+              onClick={() =>
+                setPage((ancienne) => ancienne + 1)
+              }
+              className={styles.pageButton}
+            >
+              ›
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+
+---
+
+3. ActualiteModal.tsx
+
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import { Actualite } from "./ActualitesTable";
+import styles from "./actualites.module.css";
+
+interface Props {
+  actualite: Actualite | null;
+  onFermer: () => void;
+  onEnregistrer: (
+    actualite: Omit<Actualite, "id"> & {
+      id?: number;
+    }
+  ) => void;
+}
+
+export default function ActualiteModal({
+  actualite,
+  onFermer,
+  onEnregistrer,
+}: Props) {
+  const [titre, setTitre] = useState("");
+  const [description, setDescription] = useState("");
+  const [paragraphe, setParagraphe] = useState("");
+  const [categorie, setCategorie] = useState("Politique");
+  const [date, setDate] = useState("");
+  const [motsCles, setMotsCles] = useState<string[]>([]);
+  const [nouveauMot, setNouveauMot] = useState("");
+
+  const modeModification = actualite !== null;
+
+  useEffect(() => {
+    if (actualite) {
+      setTitre(actualite.titre);
+      setDescription(actualite.description);
+      setParagraphe(actualite.paragraphe);
+      setCategorie(actualite.categorie);
+      setDate(actualite.date);
+      setMotsCles(actualite.motsCles);
+    } else {
+      setTitre("");
+      setDescription("");
+      setParagraphe("");
+      setCategorie("Politique");
+      setDate(
+        new Date().toISOString().split("T")[0]
+      );
+      setMotsCles([]);
+    }
+  }, [actualite]);
+
+  const ajouterMotCle = () => {
+    const mot = nouveauMot.trim();
+
+    if (!mot) return;
+
+    if (
+      !motsCles.some(
+        (item) => item.toLowerCase() === mot.toLowerCase()
+      )
+    ) {
+      setMotsCles((ancienneListe) => [
+        ...ancienneListe,
+        mot,
+      ]);
+    }
+
+    setNouveauMot("");
+  };
+
+  const supprimerMotCle = (mot: string) => {
+    setMotsCles((ancienneListe) =>
+      ancienneListe.filter((item) => item !== mot)
+    );
+  };
+
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      ajouterMotCle();
+    }
+  };
+
+  const handleSubmit = (
+    e: FormEvent<HTMLFormElement>
+  ) => {
+    e.preventDefault();
+
+    if (!titre.trim()) {
+      alert("Le titre est obligatoire.");
+      return;
+    }
+
+    if (!description.trim()) {
+      alert("La description est obligatoire.");
+      return;
+    }
+
+    if (!paragraphe.trim()) {
+      alert("Le paragraphe est obligatoire.");
+      return;
+    }
+
+    if (!date) {
+      alert("La date est obligatoire.");
+      return;
+    }
+
+    onEnregistrer({
+      id: actualite?.id,
+      titre: titre.trim(),
+      description: description.trim(),
+      paragraphe: paragraphe.trim(),
+      categorie,
+      date,
+      motsCles,
+    });
+  };
+
+  return (
+    <div
+      className={styles.modalOverlay}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          onFermer();
+        }
+      }}
+    >
+      <div className={styles.modal}>
+        {/* HEADER */}
+        <div className={styles.modalHeader}>
+          <div>
+            <h2 className={styles.modalTitle}>
+              {modeModification
+                ? "Modifier l'actualité"
+                : "Ajouter une actualité"}
+            </h2>
+
+            <p className={styles.modalSubtitle}>
+              {modeModification
+                ? "Modifiez les informations de cette actualité."
+                : "Ajoutez une nouvelle actualité au portail."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={onFermer}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* FORM */}
+        <form
+          onSubmit={handleSubmit}
+          className={styles.form}
+        >
+          <div className={styles.formGroup}>
+            <label>
+              Titre <span>*</span>
+            </label>
+
+            <input
+              type="text"
+              value={titre}
+              onChange={(e) =>
+                setTitre(e.target.value)
+              }
+              placeholder="Titre de l'actualité"
+              className={styles.input}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>
+              Description <span>*</span>
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(e) =>
+                setDescription(e.target.value)
+              }
+              placeholder="Courte description..."
+              rows={3}
+              className={styles.textarea}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>
+              Paragraphe <span>*</span>
+            </label>
+
+            <textarea
+              value={paragraphe}
+              onChange={(e) =>
+                setParagraphe(e.target.value)
+              }
+              placeholder="Contenu complet de l'actualité..."
+              rows={7}
+              className={styles.textarea}
+            />
+          </div>
+
+          <div className={styles.formGrid}>
+            <div className={styles.formGroup}>
+              <label>Catégorie</label>
+
+              <select
+                value={categorie}
+                onChange={(e) =>
+                  setCategorie(e.target.value)
+                }
+                className={styles.input}
+              >
+                <option value="Politique">
+                  Politique
+                </option>
+                <option value="Économie">
+                  Économie
+                </option>
+                <option value="Technologie">
+                  Technologie
+                </option>
+                <option value="Événement">
+                  Événement
+                </option>
+                <option value="Développement">
+                  Développement
+                </option>
+                <option value="Formation">
+                  Formation
+                </option>
+              </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>
+                Date <span>*</span>
+              </label>
+
+              <input
+                type="date"
+                value={date}
+                onChange={(e) =>
+                  setDate(e.target.value)
+                }
+                className={styles.input}
+              />
+            </div>
+          </div>
+
+          {/* TAGS */}
+          <div className={styles.formGroup}>
+            <label>Mots clés</label>
+
+            <div className={styles.tagsInput}>
+              {motsCles.map((mot) => (
+                <span
+                  key={mot}
+                  className={styles.formTag}
+                >
+                  {mot}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      supprimerMotCle(mot)
+                    }
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              <input
+                type="text"
+                value={nouveauMot}
+                onChange={(e) =>
+                  setNouveauMot(e.target.value)
+                }
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  motsCles.length === 0
+                    ? "Ajouter un mot clé..."
+                    : "Ajouter..."
+                }
+              />
+            </div>
+
+            <small>
+              Appuyez sur Entrée pour ajouter un mot clé.
+            </small>
+          </div>
+
+          {/* ACTIONS */}
+          <div className={styles.modalActions}>
+            <button
+              type="button"
+              onClick={onFermer}
+              className={styles.cancelButton}
+            >
+              Annuler
+            </button>
+
+            <button
+              type="submit"
+              className={styles.saveButton}
+            >
+              {modeModification
+                ? "Enregistrer les modifications"
+                : "Ajouter l'actualité"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+---
+
+4. actualites.module.css
+
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  background: #f5f7fa;
+}
+
+.container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* =========================
+   HEADER
+========================= */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #172033;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: #7b8494;
+  font-size: 14px;
+}
+
+.addButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  border: 0;
+  border-radius: 9px;
+
+  padding: 11px 18px;
+
+  background: #1d4ed8;
+  color: white;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+
+.addButton:hover {
+  background: #1e40af;
+  transform: translateY(-1px);
+}
+
+.addButton span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* =========================
+   TOOLBAR
+========================= */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 18px;
+}
+
+.searchContainer {
+  position: relative;
+  flex: 1;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+
+  color: #8a94a6;
+  font-size: 22px;
+}
+
+.searchInput {
+  width: 100%;
+  height: 42px;
+
+  padding: 0 14px 0 42px;
+
+  border: 1px solid #e1e6ed;
+  border-radius: 8px;
+
+  background: white;
+
+  outline: none;
+  font-size: 14px;
+
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  border-color: #1d4ed8;
+}
+
+.categorySelect {
+  height: 42px;
+  min-width: 170px;
+
+  padding: 0 12px;
+
+  border: 1px solid #e1e6ed;
+  border-radius: 8px;
+
+  background: white;
+
+  color: #374151;
+  outline: none;
+}
+
+/* =========================
+   TABLE
+========================= */
+
+.tableContainer {
+  background: white;
+
+  border: 1px solid #e6eaf0;
+  border-radius: 12px;
+
+  overflow-x: auto;
+
+  box-shadow:
+    0 2px 8px rgba(20, 30, 50, 0.03);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.table th {
+  height: 52px;
+
+  padding: 0 18px;
+
+  background: #f8fafc;
+
+  border-bottom: 1px solid #e6eaf0;
+
+  text-align: left;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  color: #6b7280;
+
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table td {
+  padding: 16px 18px;
+
+  border-bottom: 1px solid #eef1f5;
+
+  vertical-align: middle;
+
+  font-size: 14px;
+  color: #374151;
+}
+
+.table tbody tr {
+  transition: background 0.15s;
+}
+
+.table tbody tr:hover {
+  background: #fafcff;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.titleCell {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  max-width: 350px;
+}
+
+.titleCell strong {
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.titleCell span {
+  overflow: hidden;
+
+  color: #8a94a6;
+
+  font-size: 12px;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.categoryBadge {
+  display: inline-flex;
+
+  padding: 5px 9px;
+
+  border-radius: 6px;
+
+  background: #eef4ff;
+  color: #315fbe;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dateCell {
+  white-space: nowrap;
+  color: #687386 !important;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tag {
+  padding: 4px 7px;
+
+  border-radius: 5px;
+
+  background: #f1f3f6;
+  color: #687386;
+
+  font-size: 11px;
+}
+
+.actionsHeader {
+  text-align: right !important;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.actionButton {
+  width: 34px;
+  height: 34px;
+
+  border: 0;
+  border-radius: 7px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s,
+    transform 0.15s;
+}
+
+.actionButton:hover {
+  transform: translateY(-1px);
+}
+
+.editButton {
+  background: #eef4ff;
+  color: #2563eb;
+}
+
+.editButton:hover {
+  background: #dbe8ff;
+}
+
+.deleteButton {
+  background: #fff0f0;
+  color: #dc2626;
+}
+
+.deleteButton:hover {
+  background: #ffe0e0;
+}
+
+.empty {
+  padding: 50px !important;
+
+  text-align: center;
+
+  color: #8a94a6 !important;
+}
+
+/* =========================
+   FOOTER / PAGINATION
+========================= */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 18px 4px;
+}
+
+.resultCount {
+  color: #7b8494;
+  font-size: 13px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pageButton {
+  width: 34px;
+  height: 34px;
+
+  border: 1px solid #e1e6ed;
+  border-radius: 7px;
+
+  background: white;
+
+  color: #596579;
+
+  cursor: pointer;
+}
+
+.pageButton:hover:not(:disabled) {
+  background: #f3f6fb;
+}
+
+.pageButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.activePage {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  color: white;
+}
+
+/* =========================
+   MODAL
+========================= */
+
+.modalOverlay {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background: rgba(15, 23, 42, 0.55);
+
+  backdrop-filter: blur(3px);
+}
+
+.modal {
+  width: 100%;
+  max-width: 720px;
+  max-height: 92vh;
+
+  overflow-y: auto;
+
+  background: white;
+
+  border-radius: 14px;
+
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, 0.2);
+
+  animation: modalOpen 0.2s ease-out;
+}
+
+@keyframes modalOpen {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================
+   MODAL HEADER
+========================= */
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  padding: 22px 24px;
+
+  border-bottom: 1px solid #edf0f4;
+}
+
+.modalTitle {
+  margin: 0;
+
+  font-size: 20px;
+  font-weight: 700;
+
+  color: #172033;
+}
+
+.modalSubtitle {
+  margin: 5px 0 0;
+
+  color: #8992a2;
+
+  font-size: 13px;
+}
+
+.closeButton {
+  width: 34px;
+  height: 34px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+
+  color: #687386;
+
+  font-size: 25px;
+
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: #f1f3f6;
+}
+
+/* =========================
+   FORM
+========================= */
+
+.form {
+  padding: 24px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+
+  margin-bottom: 18px;
+}
+
+.formGroup label {
+  color: #374151;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.formGroup label span {
+  color: #dc2626;
+}
+
+.input,
+.textarea {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding: 10px 12px;
+
+  border: 1px solid #dfe4eb;
+  border-radius: 8px;
+
+  outline: none;
+
+  color: #293244;
+
+  background: white;
+
+  font-family: inherit;
+  font-size: 14px;
+
+  transition: border 0.2s;
+}
+
+.input {
+  height: 42px;
+}
+
+.textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: #1d4ed8;
+}
+
+.formGrid {
+  display: grid;
+
+  grid-template-columns: 1fr 1fr;
+
+  gap: 16px;
+}
+
+/* =========================
+   TAG INPUT
+========================= */
+
+.tagsInput {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+
+  gap: 6px;
+
+  min-height: 42px;
+
+  padding: 5px 8px;
+
+  box-sizing: border-box;
+
+  border: 1px solid #dfe4eb;
+  border-radius: 8px;
+
+  background: white;
+}
+
+.tagsInput:focus-within {
+  border-color: #1d4ed8;
+}
+
+.tagsInput > input {
+  flex: 1;
+
+  min-width: 130px;
+
+  height: 30px;
+
+  border: 0;
+
+  outline: none;
+
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.formTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  padding: 5px 8px;
+
+  border-radius: 6px;
+
+  background: #eef4ff;
+  color: #315fbe;
+
+  font-size: 12px;
+}
+
+.formTag button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 16px;
+  height: 16px;
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #315fbe;
+
+  cursor: pointer;
+
+  font-size: 15px;
+}
+
+.formGroup small {
+  color: #929aaa;
+  font-size: 11px;
+}
+
+/* =========================
+   MODAL ACTIONS
+========================= */
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  padding-top: 8px;
+}
+
+.cancelButton,
+.saveButton {
+  height: 42px;
+
+  padding: 0 17px;
+
+  border-radius: 8px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.cancelButton {
+  border: 1px solid #dfe4eb;
+
+  background: white;
+
+  color: #596579;
+}
+
+.cancelButton:hover {
+  background: #f7f8fa;
+}
+
+.saveButton {
+  border: 0;
+
+  background: #1d4ed8;
+
+  color: white;
+}
+
+.saveButton:hover {
+  background: #1e40af;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 768px) {
+  .page {
+    padding: 18px;
+  }
+
+  .header {
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .title {
+    font-size: 23px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .categorySelect {
+    width: 100%;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .modalOverlay {
+    padding: 10px;
+  }
+
+  .modal {
+    max-height: 95vh;
+  }
+
+  .modalHeader,
+  .form {
+    padding: 18px;
+  }
+
+  .modalActions {
+    flex-direction: column-reverse;
+  }
+
+  .cancelButton,
+  .saveButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 500px) {
+  .page {
+    padding: 12px;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .addButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .footer {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
+
+Résultat
+
+Tu obtiens donc cette architecture :
+
+admin/actualites/page.tsx
+        │
+        ├── ActualitesTable
+        │       │
+        │       ├── Recherche
+        │       ├── Filtre catégorie
+        │       ├── Tableau
+        │       ├── Modifier
+        │       ├── Supprimer
+        │       └── Pagination
+        │
+        └── ActualiteModal
+                │
+                ├── Ajouter
+                ├── Modifier
+                ├── Catégorie
+                ├── Date
+                └── Mots clés
+
+Le CRUD fonctionne déjà :
+
+Create
+
+Ajouter → formulaire → Enregistrer → nouvelle ligne
+
+Read
+
+actualitesInitiales → tableau
+
+Update
+
+Modifier → formulaire pré-rempli → Enregistrer → ligne modifiée
+
+Delete
+
+Supprimer → confirmation → ligne supprimée
+
+La prochaine étape logique pour ton projet est de remplacer actualitesInitiales et les setActualites(...) par les appels à ton API .NET Core, par exemple GET /api/actualites, POST, PUT et DELETE, tout en gardant exactement cette interface.

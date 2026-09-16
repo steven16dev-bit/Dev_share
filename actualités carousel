@@ -1,0 +1,773 @@
+Oui. Pour ton portail, je ferais plutôt un carousel réellement infini, avec duplication des cartes, transition fluide, swipe tactile, boutons, dots et adaptation automatique 1 / 2 / 3 cartes.
+
+ActualitesCarousel.tsx
+
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import styles from "./actualites-carousel.module.css";
+
+type Actualite = {
+  id: number;
+  titre: string;
+  description: string;
+  categorie: string;
+  date: string;
+  image: string;
+};
+
+const actualites: Actualite[] = [
+  {
+    id: 1,
+    titre: "Nouvelle stratégie de développement",
+    description: "Présentation des nouvelles orientations stratégiques.",
+    categorie: "Institution",
+    date: "15 Septembre 2026",
+    image: "/images/news/news-1.jpg",
+  },
+  {
+    id: 2,
+    titre: "Modernisation des services",
+    description: "Un nouveau programme de modernisation des services.",
+    categorie: "Développement",
+    date: "12 Septembre 2026",
+    image: "/images/news/news-2.jpg",
+  },
+  {
+    id: 3,
+    titre: "Signature de nouveaux partenariats",
+    description: "De nouveaux partenariats renforcent la coopération.",
+    categorie: "Partenariat",
+    date: "10 Septembre 2026",
+    image: "/images/news/news-3.jpg",
+  },
+  {
+    id: 4,
+    titre: "Réunion de coordination",
+    description: "Une réunion consacrée au suivi des projets.",
+    categorie: "Actualité",
+    date: "08 Septembre 2026",
+    image: "/images/news/news-4.jpg",
+  },
+  {
+    id: 5,
+    titre: "Lancement d'un nouveau projet",
+    description: "Lancement officiel d'un nouveau projet stratégique.",
+    categorie: "Projet",
+    date: "05 Septembre 2026",
+    image: "/images/news/news-5.jpg",
+  },
+  {
+    id: 6,
+    titre: "Conférence nationale",
+    description: "Participation à une conférence consacrée au développement.",
+    categorie: "Événement",
+    date: "02 Septembre 2026",
+    image: "/images/news/news-6.jpg",
+  },
+  {
+    id: 7,
+    titre: "Visite officielle",
+    description: "Une visite officielle consacrée au suivi des travaux.",
+    categorie: "Institution",
+    date: "30 Août 2026",
+    image: "/images/news/news-7.jpg",
+  },
+  {
+    id: 8,
+    titre: "Programme de formation",
+    description: "Lancement d'un nouveau programme de formation.",
+    categorie: "Formation",
+    date: "27 Août 2026",
+    image: "/images/news/news-8.jpg",
+  },
+  {
+    id: 9,
+    titre: "Bilan des activités",
+    description: "Présentation du bilan des dernières activités.",
+    categorie: "Bilan",
+    date: "24 Août 2026",
+    image: "/images/news/news-9.jpg",
+  },
+  {
+    id: 10,
+    titre: "Perspectives 2027",
+    description: "Présentation des principales perspectives pour 2027.",
+    categorie: "Perspectives",
+    date: "20 Août 2026",
+    image: "/images/news/news-10.jpg",
+  },
+];
+
+const AUTO_PLAY = 10000;
+
+export default function ActualitesCarousel() {
+  const [visibleCards, setVisibleCards] = useState(3);
+  const [currentIndex, setCurrentIndex] = useState(3);
+  const [isTransitionEnabled, setIsTransitionEnabled] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number | null>(null);
+
+  /*
+   * On ajoute les dernières cartes au début
+   * et les premières à la fin.
+   *
+   * Exemple avec 3 cartes visibles :
+   *
+   * [8,9,10] [1,2,3,4,5,6,7,8,9,10] [1,2,3]
+   *
+   * Cela permet de créer une vraie boucle infinie.
+   */
+  const slides = useMemo(() => {
+    const prefix = actualites.slice(-3);
+    const suffix = actualites.slice(0, 3);
+
+    return [...prefix, ...actualites, ...suffix];
+  }, []);
+
+  /*
+   * Responsive
+   */
+  useEffect(() => {
+    const updateVisibleCards = () => {
+      if (window.innerWidth <= 600) {
+        setVisibleCards(1);
+      } else if (window.innerWidth <= 900) {
+        setVisibleCards(2);
+      } else {
+        setVisibleCards(3);
+      }
+    };
+
+    updateVisibleCards();
+
+    window.addEventListener("resize", updateVisibleCards);
+
+    return () => {
+      window.removeEventListener("resize", updateVisibleCards);
+    };
+  }, []);
+
+  /*
+   * Repositionnement lorsque le nombre de cartes visibles change.
+   */
+  useEffect(() => {
+    setIsTransitionEnabled(false);
+
+    requestAnimationFrame(() => {
+      setCurrentIndex(visibleCards);
+
+      requestAnimationFrame(() => {
+        setIsTransitionEnabled(true);
+      });
+    });
+  }, [visibleCards]);
+
+  const nextSlide = () => {
+    setCurrentIndex((current) => current + 1);
+  };
+
+  const previousSlide = () => {
+    setCurrentIndex((current) => current - 1);
+  };
+
+  /*
+   * Lorsque l'on arrive sur les copies,
+   * on revient silencieusement sur les vraies cartes.
+   */
+  const handleTransitionEnd = () => {
+    if (currentIndex >= actualites.length + visibleCards) {
+      setIsTransitionEnabled(false);
+
+      setCurrentIndex(visibleCards);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsTransitionEnabled(true);
+        });
+      });
+    }
+
+    if (currentIndex < visibleCards) {
+      setIsTransitionEnabled(false);
+
+      setCurrentIndex(actualites.length + currentIndex);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsTransitionEnabled(true);
+        });
+      });
+    }
+  };
+
+  /*
+   * Auto-play
+   */
+  useEffect(() => {
+    if (isPaused) return;
+
+    const interval = window.setInterval(() => {
+      nextSlide();
+    }, AUTO_PLAY);
+
+    return () => window.clearInterval(interval);
+  }, [isPaused]);
+
+  /*
+   * Touch / swipe
+   */
+  const handleTouchStart = (event: React.TouchEvent) => {
+    touchStartX.current = event.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+
+    const touchEndX = event.changedTouches[0].clientX;
+    const distance = touchStartX.current - touchEndX;
+
+    const threshold = 50;
+
+    if (Math.abs(distance) > threshold) {
+      if (distance > 0) {
+        nextSlide();
+      } else {
+        previousSlide();
+      }
+    }
+
+    touchStartX.current = null;
+  };
+
+  /*
+   * Pour les dots.
+   */
+  const realIndex =
+    ((currentIndex - visibleCards) % actualites.length +
+      actualites.length) %
+    actualites.length;
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.header}>
+        <div>
+          <span className={styles.subtitle}>ACTUALITÉS</span>
+
+          <h2>Dernières actualités</h2>
+        </div>
+
+        <div className={styles.navigation}>
+          <button
+            type="button"
+            onClick={previousSlide}
+            aria-label="Actualité précédente"
+          >
+            ←
+          </button>
+
+          <button
+            type="button"
+            onClick={nextSlide}
+            aria-label="Actualité suivante"
+          >
+            →
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={styles.carousel}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div
+          ref={trackRef}
+          className={`${styles.track} ${
+            isTransitionEnabled ? styles.transition : ""
+          }`}
+          style={{
+            transform: `translateX(-${
+              (currentIndex * 100) / visibleCards
+            }%)`,
+          }}
+          onTransitionEnd={handleTransitionEnd}
+        >
+          {slides.map((actualite, index) => (
+            <article
+              className={styles.card}
+              key={`${actualite.id}-${index}`}
+            >
+              <div className={styles.imageContainer}>
+                <img
+                  src={actualite.image}
+                  alt={actualite.titre}
+                  className={styles.image}
+                />
+
+                <span className={styles.category}>
+                  {actualite.categorie}
+                </span>
+              </div>
+
+              <div className={styles.content}>
+                <span className={styles.date}>
+                  {actualite.date}
+                </span>
+
+                <h3>{actualite.titre}</h3>
+
+                <p>{actualite.description}</p>
+
+                <a href={`/actualites?id=${actualite.id}`}>
+                  Lire la suite
+                  <span> →</span>
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.footer}>
+        <div className={styles.dots}>
+          {actualites.map((actualite, index) => (
+            <button
+              key={actualite.id}
+              type="button"
+              aria-label={`Afficher ${actualite.titre}`}
+              className={
+                index === realIndex
+                  ? styles.activeDot
+                  : styles.dot
+              }
+              onClick={() => {
+                setIsTransitionEnabled(true);
+                setCurrentIndex(index + visibleCards);
+              }}
+            />
+          ))}
+        </div>
+
+        <a href="/actualites" className={styles.allNews}>
+          Toutes les actualités →
+        </a>
+      </div>
+    </section>
+  );
+}
+
+"actualites-carousel.module.css"
+
+:::writing{variant="standard" id="74106" title="actualites-carousel.module.css"}
+
+.section {
+  width: 100%;
+  padding: 70px 0;
+
+  overflow: hidden;
+}
+
+.header {
+  max-width: 1200px;
+
+  margin: 0 auto 30px;
+
+  padding: 0 20px;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.subtitle {
+  display: block;
+
+  margin-bottom: 8px;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+
+  color: #777;
+}
+
+.header h2 {
+  margin: 0;
+
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+
+/* =========================
+   NAVIGATION
+========================= */
+
+.navigation {
+  display: flex;
+  gap: 8px;
+}
+
+.navigation button {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #ddd;
+  border-radius: 50%;
+
+  background: #fff;
+
+  font-size: 18px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.navigation button:hover {
+  background: #222;
+  color: #fff;
+
+  transform: translateY(-2px);
+}
+
+
+/* =========================
+   CAROUSEL
+========================= */
+
+.carousel {
+  width: 100%;
+
+  max-width: 1200px;
+
+  margin: auto;
+
+  overflow: hidden;
+
+  touch-action: pan-y;
+}
+
+.track {
+  display: flex;
+
+  width: 100%;
+}
+
+.transition {
+  transition: transform 0.65s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+
+/*
+ * 3 cartes
+ */
+.card {
+  flex: 0 0 33.333333%;
+
+  box-sizing: border-box;
+
+  padding: 0 10px;
+}
+
+
+/* =========================
+   CARD
+========================= */
+
+.card {
+  cursor: pointer;
+}
+
+.card > div {
+  background: #fff;
+}
+
+.imageContainer {
+  position: relative;
+
+  width: 100%;
+  height: 220px;
+
+  overflow: hidden;
+
+  border-radius: 14px 14px 0 0;
+
+  background: #eee;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+
+  transition: transform 0.5s ease;
+}
+
+.card:hover .image {
+  transform: scale(1.05);
+}
+
+.category {
+  position: absolute;
+
+  top: 15px;
+  left: 15px;
+
+  padding: 6px 12px;
+
+  border-radius: 20px;
+
+  background: rgba(255, 255, 255, 0.94);
+
+  font-size: 11px;
+  font-weight: 700;
+}
+
+
+/* =========================
+   CONTENT
+========================= */
+
+.content {
+  min-height: 190px;
+
+  padding: 20px;
+
+  border: 1px solid #e8e8e8;
+
+  border-top: 0;
+
+  border-radius: 0 0 14px 14px;
+
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+}
+
+.date {
+  font-size: 12px;
+
+  color: #888;
+}
+
+.content h3 {
+  margin: 9px 0;
+
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.content p {
+  margin: 0 0 17px;
+
+  color: #666;
+
+  font-size: 14px;
+
+  line-height: 1.6;
+
+  display: -webkit-box;
+
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+
+  overflow: hidden;
+}
+
+.content a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  color: #222;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  text-decoration: none;
+}
+
+.content a span {
+  transition: transform 0.2s ease;
+}
+
+.content a:hover span {
+  transform: translateX(4px);
+}
+
+
+/* =========================
+   FOOTER
+========================= */
+
+.footer {
+  max-width: 1200px;
+
+  margin: 28px auto 0;
+
+  padding: 0 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dots {
+  display: flex;
+  align-items: center;
+
+  gap: 6px;
+}
+
+.dot,
+.activeDot {
+  width: 7px;
+  height: 7px;
+
+  padding: 0;
+
+  border: 0;
+
+  border-radius: 50%;
+
+  background: #ccc;
+
+  cursor: pointer;
+
+  transition:
+    width 0.25s ease,
+    background 0.25s ease;
+}
+
+.activeDot {
+  width: 22px;
+
+  background: #222;
+
+  border-radius: 10px;
+}
+
+.allNews {
+  color: #222;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  text-decoration: none;
+}
+
+.allNews:hover {
+  text-decoration: underline;
+}
+
+
+/* =========================
+   TABLET
+========================= */
+
+@media (max-width: 900px) {
+  .card {
+    flex-basis: 50%;
+  }
+
+  .imageContainer {
+    height: 210px;
+  }
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 600px) {
+  .section {
+    padding: 50px 0;
+  }
+
+  .header {
+    align-items: center;
+  }
+
+  .header h2 {
+    font-size: 25px;
+  }
+
+  .subtitle {
+    font-size: 10px;
+  }
+
+  .navigation button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .card {
+    flex-basis: 100%;
+  }
+
+  .imageContainer {
+    height: 220px;
+  }
+
+  .content {
+    min-height: auto;
+  }
+
+  .footer {
+    margin-top: 22px;
+  }
+
+  .allNews {
+    font-size: 12px;
+  }
+}
+
+Utilisation dans ta page d'accueil
+
+import ActualitesCarousel from "@/components/actualites/ActualitesCarousel";
+
+export default function HomePage() {
+  return (
+    <main>
+      {/* Hero */}
+
+      <ActualitesCarousel />
+
+      {/* Autres sections */}
+    </main>
+  );
+}
+
+Ce que cette version apporte
+
+Fonction| Comportement
+📰 Actualités| 10 cartes
+🖥️ Desktop| 3 cartes visibles
+📱 Tablette| 2 cartes
+📱 Mobile| 1 carte
+⏱️ Auto-play| Toutes les 10 secondes
+🔄 Boucle| Infinie, sans saut visible
+← →| Navigation manuelle
+👆 Swipe| Compatible tactile
+🖱️ Hover| Auto-play en pause
+•••| Navigation par dots
+🔗| Lien vers "/actualites?id="
+📋| Lien « Toutes les actualités »
+
+Point important pour ton projet : actuellement les 10 actualités sont dans le composant uniquement pour la démonstration. Dans ta version finale, on remplacera "actualites" par les données provenant de ton API .NET / Oracle, par exemple "GET /api/actualites", sans modifier le fonctionnement du carousel.

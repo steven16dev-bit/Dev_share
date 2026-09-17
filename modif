@@ -1,160 +1,223 @@
-Oui. Pour reproduire le rendu de l'image, il faut surtout modifier le conteneur global du gestionnaire, puis donner aux deux blocs (FolderTree et FileList) un aspect de cartes blanches séparées.
+Yes. For your ActualiteModal, the cleanest approach is to make the editor a reusable component and expose its value through an onChange prop.
 
-Je te conseille cette structure :
+The parent component will receive the formatted HTML.
 
-<div className="file-manager">
-  <aside className="folder-tree-container">
-    <FolderTree />
-  </aside>
+1. RichTextEditor.tsx
 
-  <section className="file-list-container">
-    <FileList />
-  </section>
-</div>
+"use client";
 
-1. Background général
+import { useEffect, useRef } from "react";
+import styles from "./RichTextEditor.module.css";
 
-Le fond de l'image n'est pas blanc. Il est gris/bleu très clair :
+type RichTextEditorProps = {
+  value: string;
+  onChange: (value: string) => void;
+};
 
-.file-manager {
-  min-height: calc(100vh - 64px);
+export default function RichTextEditor({
+  value,
+  onChange,
+}: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
 
-  display: flex;
-  gap: 16px;
+  // Initial value / value changed from outside
+  useEffect(() => {
+    if (
+      editorRef.current &&
+      editorRef.current.innerHTML !== value
+    ) {
+      editorRef.current.innerHTML = value || "";
+    }
+  }, [value]);
 
-  padding: 20px;
+  const format = (command: string, value?: string) => {
+    editorRef.current?.focus();
 
-  background: #f6f8fc;
+    document.execCommand(command, false, value);
 
-  box-sizing: border-box;
+    handleChange();
+  };
+
+  const handleChange = () => {
+    if (editorRef.current) {
+      onChange(editorRef.current.innerHTML);
+    }
+  };
+
+  return (
+    <div className={styles.editor}>
+
+      {/* Toolbar */}
+      <div className={styles.toolbar}>
+
+        <select
+          defaultValue="Arial"
+          onChange={(e) =>
+            format("fontName", e.target.value)
+          }
+        >
+          <option value="Arial">Arial</option>
+          <option value="Georgia">Georgia</option>
+          <option value="Verdana">Verdana</option>
+          <option value="Times New Roman">
+            Times New Roman
+          </option>
+        </select>
+
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => format("bold")}
+        >
+          <strong>B</strong>
+        </button>
+
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => format("italic")}
+        >
+          <i>I</i>
+        </button>
+
+      </div>
+
+      {/* Editable area */}
+      <div
+        ref={editorRef}
+        className={styles.content}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleChange}
+      />
+
+    </div>
+  );
 }
 
-Le gap: 16px donne l'espace entre l'arbre et la liste.
+2. RichTextEditor.module.css
+
+.editor {
+  width: 100%;
+  border: 1px solid #d9dfe8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid #d9dfe8;
+  background: #f7f8fa;
+}
+
+.toolbar select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d9dfe8;
+  border-radius: 5px;
+  background: white;
+  font-size: 14px;
+}
+
+.toolbar button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d9dfe8;
+  border-radius: 5px;
+  background: white;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.toolbar button:hover {
+  background: #eef1f5;
+}
+
+.content {
+  min-height: 180px;
+  padding: 15px;
+  outline: none;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.content:empty::before {
+  content: "Écrivez votre paragraphe...";
+  color: #999;
+}
 
 
 ---
 
-2. Bloc Folder Tree
+3. Use it from ActualiteModal.tsx
 
-.folder-tree-container {
-  width: 255px;
-  flex-shrink: 0;
+For example, your state:
 
-  background: #ffffff;
+const [paragraphe, setParagraphe] = useState("");
 
-  border: 1px solid #e5eaf1;
-  border-radius: 10px;
+Then:
 
-  overflow: hidden;
-}
+<RichTextEditor
+  value={paragraphe}
+  onChange={setParagraphe}
+/>
 
-3. Bloc File List
+Import it:
 
-.file-list-container {
-  flex: 1;
-  min-width: 0;
+import RichTextEditor from "@/components/RichTextEditor/RichTextEditor";
 
-  background: #ffffff;
+Now whenever the user types or formats text:
 
-  border: 1px solid #e5eaf1;
-  border-radius: 10px;
+Bonjour ceci est normal.
 
-  overflow: hidden;
-}
+Ceci est BOLD.
 
-Tu obtiens :
+Ceci est italic.
 
-┌─────────────────────────────────────────────────────────────┐
-│                  BACKGROUND #f6f8fc                          │
-│                                                             │
-│  ┌───────────────┐   16px   ┌─────────────────────────────┐ │
-│  │               │           │                             │ │
-│  │  📁 Dossiers  │           │  📁 RH                     │ │
-│  │               │           │                             │ │
-│  │  📁 RH        │           │  Recherche   Type   Trier  │ │
-│  │   ├ Contrats  │           │                             │ │
-│  │   ├ Paie      │           │  📄 Contrat.pdf            │ │
-│  │   └ Formation │           │  📄 Note.pdf                │ │
-│  │               │           │  📄 Rapport.pdf             │ │
-│  └───────────────┘           └─────────────────────────────┘ │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+the parent automatically receives something like:
 
-4. Si ton FolderTree et FileList sont directement dans FileManager
-
-Tu peux simplement faire :
-
-<div className="file-manager">
-
-  <div className="folder-tree-container">
-    <FolderTree
-      ...
-    />
-  </div>
-
-  <div className="file-list-container">
-    <FileList
-      ...
-    />
-  </div>
-
+<p>Bonjour ceci est normal.</p>
+<div>
+  Ceci est <b>BOLD</b>.
+</div>
+<div>
+  Ceci est <i>italic</i>.
 </div>
 
-5. Espacement intérieur
+So when you submit your form:
 
-Pour obtenir le style de l'image, je mettrais :
+const handleSubmit = () => {
+  console.log(paragraphe);
 
-.folder-tree-container {
-  padding: 4px;
-}
+  // Send to .NET API
+  // paragraphe contains the formatted HTML
+};
 
-.file-list-container {
-  padding: 0;
-}
+The important idea
 
-Puis le FolderTree lui-même :
+Your component works like this:
 
-.folder-tree {
-  padding: 16px 12px;
-}
+ActualiteModal
+      │
+      │ value
+      ▼
+RichTextEditor
+      │
+      │ onChange(html)
+      ▼
+ActualiteModal
+      │
+      ▼
+.NET API
+      │
+      ▼
+Oracle
 
-Pour la liste :
+So you don't need to access the editor with a ref from the parent. The parent simply owns the paragraphe value.
 
-.file-list {
-  padding: 16px;
-}
-
-6. Responsive
-
-Sur mobile, les deux blocs doivent passer l'un sous l'autre :
-
-@media (max-width: 768px) {
-  .file-manager {
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px;
-  }
-
-  .folder-tree-container {
-    width: 100%;
-  }
-
-  .file-list-container {
-    width: 100%;
-  }
-}
-
-Les valeurs importantes du design
-
-Background global       #f6f8fc
-Carte                   #ffffff
-Border                  #e5eaf1
-Radius                  10px
-Espace entre cartes     16px
-Padding extérieur       20px
-FolderTree              255px
-FileList                flex: 1
-
-C'est surtout background: #f6f8fc + gap: 16px + les deux cartes blanches qui vont donner le même effet visuel que la maquette.
-
-----
+For your existing Actualités CRUD, this means your database Paragraphe column can contain the formatted HTML while Titre, Description, Catégorie, etc. remain normal fields.

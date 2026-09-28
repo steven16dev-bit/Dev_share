@@ -1,77 +1,198 @@
-Oui. Si tu veux un seul ArticleCard commun, sans faire :
+Oui, tu peux éviter is_flash + is_featured. Pour ton besoin, je recommande plutôt de stocker la position/rôle de l’article dans l’affichage.
 
-{isAdmin && <ActionMenu />}
+Option simple et économique
 
-dans le composant partagé, le mieux est de séparer la carte de l’autorisation.
+Ajouter une seule colonne :
 
-Architecture
+DISPLAY_POSITION NUMBER NULL
 
-ArticleCard
- ├── contenu commun
- └── emplacement pour actions
-        ↑
-        ├── User → rien
-        └── Admin → Edit/Delete
+Par exemple :
 
-Par exemple avec une prop actions :
+Article	DISPLAY_POSITION
 
-<ArticleCard
-    article={article}
-    actions={
-        <ArticleActions articleId={article.id} />
-    }
-/>
+Article A	1
+Article B	2
+Article C	3
+Article D	4
+Article E	NULL
 
-Mais côté utilisateur, tu ne passes simplement pas actions :
 
-<ArticleCard article={article} />
+Et tu définis :
 
-Et ArticleCard reste totalement générique :
+1 → Featured
 
-export default function ArticleCard({ article, actions }) {
-    return (
-        <article className="article-card">
+2, 3, 4 → Flash News
 
-            <img src={article.image} />
+NULL → article normal
 
-            <h2>{article.titre}</h2>
 
-            <p>{article.description}</p>
+Mais je préfère encore une approche avec une colonne NEWS_TYPE :
 
-            {actions}
+NEWS_TYPE VARCHAR2(20)
 
-        </article>
-    );
-}
+Valeurs :
 
-Encore mieux dans ton architecture Next.js
+FEATURED
+FLASH
+NULL
 
-Tu peux avoir :
+Tu aurais :
 
-components/
-│
-├── ArticleCard.tsx          ← commun
-├── ArticleActions.tsx       ← admin
-│
-├── website/
-│   └── ArticleList.tsx
-│
-└── admin/
-    └── ArticleList.tsx
+Article	NEWS_TYPE
 
-User :
+A	FEATURED
+B	FLASH
+C	FLASH
+D	FLASH
+E	NULL
 
-<ArticleCard article={article} />
 
-Admin :
+Pourquoi je préfère NEWS_TYPE
 
-<ArticleCard
-    article={article}
-    actions={<ArticleActions articleId={article.id} />}
-/>
+C'est plus explicite que :
 
-Ainsi, aucune condition isAdmin dans ArticleCard.
+is_flash = 1
+is_featured = 0
 
-Et surtout, l'autorisation réelle doit rester côté serveur/API .NET : même si quelqu'un essaie d'appeler directement DELETE, l'API vérifie qu'il est administrateur.
+Et surtout, tu peux faire évoluer facilement :
 
-C'est particulièrement adapté à ton besoin précédent : le navigateur utilisateur ne reçoit même pas le composant ArticleActions, plutôt que de recevoir le bouton puis de simplement le cacher.
+FEATURED
+FLASH
+NORMAL
+
+ou plus tard :
+
+FEATURED
+FLASH
+TRENDING
+IMPORTANT
+
+Mais attention à une chose
+
+Avec NEWS_TYPE, la BD ne garantit pas automatiquement qu'il n'y aura qu'un seul FEATURED et 3 FLASH.
+
+Tu peux gérer cette règle dans ton API :
+
+FEATURED → maximum 1
+FLASH     → maximum 3
+
+Et lors de la sélection d'un nouvel article, ton API peut automatiquement retirer le rôle d'un ancien.
+
+Pour ton portail, je choisirais donc NEWS_TYPE + éventuellement DISPLAY_ORDER.
+
+Exemple :
+
+NEWS_TYPE     VARCHAR2(20)
+DISPLAY_ORDER NUMBER
+
+
+
+
+Cela permet :
+
+FEATURED  1
+FLASH     1
+FLASH     2
+FLASH     3
+NULL      NULL
+
+Ainsi tu contrôles le type et l'ordre d'affichage sans multiplier les colonnes booléennes.
+
+
+Oui, Sidali. Pour ton portail d'actualités, tu peux créer une table séparée qui contient uniquement les 4 articles sélectionnés : 1 Featured et 3 Flash News.
+
+### 1\. Structure des tables
+
+### Table `ARTICLE`
+
+Ta table existante reste inchangée.
+
+| ID  | TITRE     | DESCRIPTION   |
+| --- | --------- | ------------- |
+| 1   | Article A | Description A |
+| 2   | Article B | Description B |
+| 3   | Article C | Description C |
+| 4   | Article D | Description D |
+| 5   | Article E | Description E |
+
+### Table `ARTICLE_HIGHLIGHT`
+
+Nouvelle table de sélection des articles
+
+| ID_ARTICLE | TYPE     | POSITION |
+| ---------- | -------- | -------- |
+| 1          | FEATURED | 1        |
+| 2          | FLASH    | 1        |
+| 3          | FLASH    | 2        |
+| 4          | FLASH    | 3        |
+
+* `ID_ARTICLE` : référence à l'article.
+
+* `TYPE` : `FEATURED` ou `FLASH`.
+
+* `POSITION` : ordre d'affichage.
+
+### 2\. Exemple SQL Oracle
+
+```sql
+CREATE TABLE ARTICLE_HIGHLIGHT (
+    ID_ARTICLE NUMBER PRIMARY KEY,
+    TYPE VARCHAR2(20) NOT NULL,
+    POSITION NUMBER NOT NULL,
+
+    CONSTRAINT FK_HIGHLIGHT_ARTICLE
+        FOREIGN KEY (ID_ARTICLE)
+        REFERENCES ARTICLE(ID),
+
+    CONSTRAINT CK_HIGHLIGHT_TYPE
+        CHECK (TYPE IN ('FEATURED', 'FLASH')),
+
+    CONSTRAINT UQ_HIGHLIGHT_POSITION
+        UNIQUE (TYPE, POSITION)
+);
+```
+
+Pour garantir un seul Featured :
+
+```sql
+CREATE UNIQUE INDEX UX_ONE_FEATURED
+ON ARTICLE_HIGHLIGHT (
+    CASE WHEN TYPE = 'FEATURED' THEN 1 END
+);
+```
+
+Cette structure garantit un seul `FEATURED` et empêche deux articles d'avoir la même position pour un même type.
+
+Attention : elle ne garantit pas à elle seule qu'il y aura exactement trois `FLASH` ou quatre lignes au total. Cette règle doit être contrôlée dans ton API ou dans une procédure Oracle.
+
+### 3\. Récupérer les articles pour Next.js
+
+```sql
+SELECT
+    A.ID,
+    A.TITRE,
+    A.DESCRIPTION,
+    H.TYPE,
+    H.POSITION
+FROM ARTICLE A
+INNER JOIN ARTICLE_HIGHLIGHT H
+    ON A.ID = H.ID_ARTICLE
+ORDER BY
+    CASE H.TYPE
+        WHEN 'FEATURED' THEN 1
+        WHEN 'FLASH' THEN 2
+    END,
+    H.POSITION;
+```
+
+### 4\. Pourquoi cette solution ?
+
+* Ta table `ARTICLE` reste propre.
+
+* Tu peux remplacer les articles mis en avant sans modifier leurs données.
+
+* Tu peux ajouter ultérieurement d'autres types de sélection.
+
+* Tu peux gérer la sélection depuis ton panneau d'administration.
+
+Mon conseil : pour ton portail, cette table externe est adaptée si tu veux séparer le contenu des articles de leur sélection pour l'affichage. Si les articles mis en avant doivent être limités à exactement quatre, prévois une transaction ou une procédure pour gérer leur remplacement proprement.

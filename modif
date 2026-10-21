@@ -1,198 +1,699 @@
-Oui, tu peux éviter is_flash + is_featured. Pour ton besoin, je recommande plutôt de stocker la position/rôle de l’article dans l’affichage.
+Oui. Pour ton API ASP.NET Core + Oracle, tu peux gérer l’autorisation manuellement sans utiliser [Authorize(Roles = ...)].
 
-Option simple et économique
+L’idée est :
 
-Ajouter une seule colonne :
+Utilisateur connecté → récupérer son identité → vérifier ses permissions en base → autoriser/refuser l’action.
 
-DISPLAY_POSITION NUMBER NULL
+1. Exemple de table Oracle
+
+USER_PERMISSION
+---------------
+USER_ID
+PERMISSION_CODE
+
+Exemples :
+
+SIDALI | DOCUMENT_VIEW
+SIDALI | DOCUMENT_UPLOAD
+SIDALI | DOCUMENT_DELETE
+SIDALI | DOCUMENT_RENAME
+
+2. Service d’autorisation
+
+public interface IPermissionService
+{
+    Task<bool> HasPermissionAsync(
+        string userId,
+        string permission);
+}
+
+Implémentation :
+
+public class PermissionService : IPermissionService
+{
+    private readonly OracleConnection _connection;
+
+    public PermissionService(OracleConnection connection)
+    {
+        _connection = connection;
+    }
+
+    public async Task<bool> HasPermissionAsync(
+        string userId,
+        string permission)
+    {
+        const string sql = """
+            SELECT COUNT(1)
+            FROM USER_PERMISSION
+            WHERE USER_ID = :userId
+              AND PERMISSION_CODE = :permission
+        """;
+
+        using var command = new OracleCommand(sql, _connection);
+
+        command.Parameters.Add(":userId", userId);
+        command.Parameters.Add(":permission", permission);
+
+        var count = Convert.ToInt32(
+            await command.ExecuteScalarAsync()
+        );
+
+        return count > 0;
+    }
+}
+
+3. Vérification directement dans le Controller
+
+Par exemple pour ton système de fichiers :
+
+[HttpDelete("{id}")]
+public async Task<IActionResult> DeleteFolder(int id)
+{
+    var userId = User.Identity?.Name;
+
+    if (string.IsNullOrEmpty(userId))
+        return Unauthorized();
+
+    var allowed = await _permissionService
+        .HasPermissionAsync(userId, "DOCUMENT_DELETE");
+
+    if (!allowed)
+        return Forbid();
+
+    // Suppression du dossier
+    await _folderService.DeleteAsync(id);
+
+    return Ok();
+}
+
+Tu peux donc avoir :
+
+GET    /documents
+        → DOCUMENT_VIEW
+
+POST   /documents/upload
+        → DOCUMENT_UPLOAD
+
+DELETE /documents/{id}
+        → DOCUMENT_DELETE
+
+PUT    /documents/{id}/rename
+        → DOCUMENT_RENAME
+
+4. Encore mieux : une méthode générique
+
+Dans ton Controller :
+
+private async Task<bool> HasPermission(string permission)
+{
+    var userId = User.Identity?.Name;
+
+    if (string.IsNullOrEmpty(userId))
+        return false;
+
+    return await _permissionService
+        .HasPermissionAsync(userId, permission);
+}
+
+Puis :
+
+if (!await HasPermission("DOCUMENT_RENAME"))
+    return Forbid();
+
+
+---
+
+5. Pour ton système de dossiers
+
+Je te conseille de séparer deux types d'autorisation :
+
+AUTORISATION
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+       Accès au dossier         Action sur dossier
+             │                       │
+       DOCUMENT_VIEW           DOCUMENT_DELETE
+       DOCUMENT_READ           DOCUMENT_RENAME
+       DOCUMENT_UPLOAD         DOCUMENT_MOVE
+
+Ainsi, un utilisateur peut par exemple :
+
+📁 Documents
+ ├── 📁 Contrats        👁 autorisé
+ ├── 📁 Marchés         👁 autorisé
+ └── 📁 Confidentiel    ❌ invisible
+
+Et même s'il a accès à Marchés :
+
+Marchés
+ ├── consulter       ✅
+ ├── télécharger     ✅
+ ├── renommer        ❌
+ └── supprimer       ❌
+
+Important : ne te limite pas à cacher les boutons dans Next.js. La vérification doit être faite dans l'API, car un utilisateur peut appeler directement l'endpoint.
+
+Pour ton architecture actuelle, je recommande même de faire un AuthorizationService centralisé qui reçoit userId + folderId + action et décide directement si l'opération est autorisée. Cela évite de répéter les if (!permission) dans tous tes controllers.
+
+
+Oui 👍 Tu peux faire exactement ça avec une annotation/attribut personnalisé en ASP.NET Core.
+
+Par exemple, tu pourrais écrire :
+
+[RequirePermission("DOCUMENT_DELETE")]
+[HttpDelete("{id}")]
+public async Task<IActionResult> DeleteFolder(int id)
+{
+    await _folderService.DeleteAsync(id);
+    return Ok();
+}
+
+L'attribut ne fait pas directement la vérification. Il sert à déclarer la permission requise, puis un AuthorizationFilter ou un IAuthorizationHandler effectue la vérification dans Oracle.
+
+Architecture
+
+[RequirePermission("DOCUMENT_DELETE")]
+             ↓
+      Authorization Filter
+             ↓
+       user.Identity.Name
+             ↓
+     PermissionService
+             ↓
+          Oracle
+             ↓
+       ✅ autorisé
+       ❌ 403 Forbidden
+
+Exemple d'attribut :
+
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public class RequirePermissionAttribute : Attribute
+{
+    public string Permission { get; }
+
+    public RequirePermissionAttribute(string permission)
+    {
+        Permission = permission;
+    }
+}
+
+Ensuite :
+
+[RequirePermission("DOCUMENT_RENAME")]
+[HttpPut("{id}/rename")]
+public async Task<IActionResult> RenameFolder(int id)
+{
+    // Si on arrive ici, l'utilisateur est autorisé
+    ...
+}
+
+C'est particulièrement intéressant pour ton système de fichiers, car tu peux avoir :
+
+[RequirePermission("DOCUMENT_VIEW")]
+[HttpGet]
+
+[RequirePermission("DOCUMENT_UPLOAD")]
+[HttpPost("upload")]
+
+[RequirePermission("DOCUMENT_RENAME")]
+[HttpPut("{id}/rename")]
+
+[RequirePermission("DOCUMENT_DELETE")]
+[HttpDelete("{id}")]
+
+Et oui, tu peux faire toute la vérification manuellement dans Oracle, sans utiliser les rôles ASP.NET classiques.
+
+Si tu veux, je peux te montrer la version complète avec **`[RequirePermission]` + `IAsyncAuthorizationFilter` + Oracle 19c**, prête à intégrer dans ton API.
+
+
+
+
+Oui. Pour ton architecture ASP.NET Core API + Oracle 19c, je te conseille cette approche : l'attribut reste très simple, et toute la logique est centralisée dans un IAsyncAuthorizationFilter.
+
+1. Structure
+
+Authorization/
+├── RequirePermissionAttribute.cs
+├── PermissionAuthorizationFilter.cs
+├── PermissionFilterFactory.cs
+└── PermissionService.cs
+
+Le fonctionnement sera :
+
+[RequirePermission("DOCUMENT_DELETE")]
+              ↓
+PermissionFilterFactory
+              ↓
+PermissionAuthorizationFilter
+              ↓
+User.Identity.Name
+              ↓
+PermissionService
+              ↓
+Oracle 19c
+              ↓
+      ┌───────┴────────┐
+      ↓                ↓
+    true             false
+      ↓                ↓
+ Controller          403
+
+
+---
+
+2. Table Oracle
 
 Par exemple :
 
-Article	DISPLAY_POSITION
+CREATE TABLE USER_PERMISSION
+(
+    USER_ID          VARCHAR2(100) NOT NULL,
+    PERMISSION_CODE  VARCHAR2(100) NOT NULL,
 
-Article A	1
-Article B	2
-Article C	3
-Article D	4
-Article E	NULL
-
-
-Et tu définis :
-
-1 → Featured
-
-2, 3, 4 → Flash News
-
-NULL → article normal
-
-
-Mais je préfère encore une approche avec une colonne NEWS_TYPE :
-
-NEWS_TYPE VARCHAR2(20)
-
-Valeurs :
-
-FEATURED
-FLASH
-NULL
-
-Tu aurais :
-
-Article	NEWS_TYPE
-
-A	FEATURED
-B	FLASH
-C	FLASH
-D	FLASH
-E	NULL
-
-
-Pourquoi je préfère NEWS_TYPE
-
-C'est plus explicite que :
-
-is_flash = 1
-is_featured = 0
-
-Et surtout, tu peux faire évoluer facilement :
-
-FEATURED
-FLASH
-NORMAL
-
-ou plus tard :
-
-FEATURED
-FLASH
-TRENDING
-IMPORTANT
-
-Mais attention à une chose
-
-Avec NEWS_TYPE, la BD ne garantit pas automatiquement qu'il n'y aura qu'un seul FEATURED et 3 FLASH.
-
-Tu peux gérer cette règle dans ton API :
-
-FEATURED → maximum 1
-FLASH     → maximum 3
-
-Et lors de la sélection d'un nouvel article, ton API peut automatiquement retirer le rôle d'un ancien.
-
-Pour ton portail, je choisirais donc NEWS_TYPE + éventuellement DISPLAY_ORDER.
-
-Exemple :
-
-NEWS_TYPE     VARCHAR2(20)
-DISPLAY_ORDER NUMBER
-
-
-
-
-Cela permet :
-
-FEATURED  1
-FLASH     1
-FLASH     2
-FLASH     3
-NULL      NULL
-
-Ainsi tu contrôles le type et l'ordre d'affichage sans multiplier les colonnes booléennes.
-
-
-Oui, Sidali. Pour ton portail d'actualités, tu peux créer une table séparée qui contient uniquement les 4 articles sélectionnés : 1 Featured et 3 Flash News.
-
-### 1\. Structure des tables
-
-### Table `ARTICLE`
-
-Ta table existante reste inchangée.
-
-| ID  | TITRE     | DESCRIPTION   |
-| --- | --------- | ------------- |
-| 1   | Article A | Description A |
-| 2   | Article B | Description B |
-| 3   | Article C | Description C |
-| 4   | Article D | Description D |
-| 5   | Article E | Description E |
-
-### Table `ARTICLE_HIGHLIGHT`
-
-Nouvelle table de sélection des articles
-
-| ID_ARTICLE | TYPE     | POSITION |
-| ---------- | -------- | -------- |
-| 1          | FEATURED | 1        |
-| 2          | FLASH    | 1        |
-| 3          | FLASH    | 2        |
-| 4          | FLASH    | 3        |
-
-* `ID_ARTICLE` : référence à l'article.
-
-* `TYPE` : `FEATURED` ou `FLASH`.
-
-* `POSITION` : ordre d'affichage.
-
-### 2\. Exemple SQL Oracle
-
-```sql
-CREATE TABLE ARTICLE_HIGHLIGHT (
-    ID_ARTICLE NUMBER PRIMARY KEY,
-    TYPE VARCHAR2(20) NOT NULL,
-    POSITION NUMBER NOT NULL,
-
-    CONSTRAINT FK_HIGHLIGHT_ARTICLE
-        FOREIGN KEY (ID_ARTICLE)
-        REFERENCES ARTICLE(ID),
-
-    CONSTRAINT CK_HIGHLIGHT_TYPE
-        CHECK (TYPE IN ('FEATURED', 'FLASH')),
-
-    CONSTRAINT UQ_HIGHLIGHT_POSITION
-        UNIQUE (TYPE, POSITION)
+    CONSTRAINT PK_USER_PERMISSION
+        PRIMARY KEY (USER_ID, PERMISSION_CODE)
 );
-```
 
-Pour garantir un seul Featured :
+Quelques données :
 
-```sql
-CREATE UNIQUE INDEX UX_ONE_FEATURED
-ON ARTICLE_HIGHLIGHT (
-    CASE WHEN TYPE = 'FEATURED' THEN 1 END
-);
-```
+INSERT INTO USER_PERMISSION
+    (USER_ID, PERMISSION_CODE)
+VALUES
+    ('SIDALI', 'DOCUMENT_VIEW');
 
-Cette structure garantit un seul `FEATURED` et empêche deux articles d'avoir la même position pour un même type.
+INSERT INTO USER_PERMISSION
+    (USER_ID, PERMISSION_CODE)
+VALUES
+    ('SIDALI', 'DOCUMENT_UPLOAD');
 
-Attention : elle ne garantit pas à elle seule qu'il y aura exactement trois `FLASH` ou quatre lignes au total. Cette règle doit être contrôlée dans ton API ou dans une procédure Oracle.
+INSERT INTO USER_PERMISSION
+    (USER_ID, PERMISSION_CODE)
+VALUES
+    ('SIDALI', 'DOCUMENT_RENAME');
 
-### 3\. Récupérer les articles pour Next.js
+COMMIT;
 
-```sql
-SELECT
-    A.ID,
-    A.TITRE,
-    A.DESCRIPTION,
-    H.TYPE,
-    H.POSITION
-FROM ARTICLE A
-INNER JOIN ARTICLE_HIGHLIGHT H
-    ON A.ID = H.ID_ARTICLE
-ORDER BY
-    CASE H.TYPE
-        WHEN 'FEATURED' THEN 1
-        WHEN 'FLASH' THEN 2
-    END,
-    H.POSITION;
-```
 
-### 4\. Pourquoi cette solution ?
+---
 
-* Ta table `ARTICLE` reste propre.
+3. RequirePermissionAttribute
 
-* Tu peux remplacer les articles mis en avant sans modifier leurs données.
+Le point important est de ne pas faire la logique Oracle directement dans l'attribut.
 
-* Tu peux ajouter ultérieurement d'autres types de sélection.
+using Microsoft.AspNetCore.Mvc;
 
-* Tu peux gérer la sélection depuis ton panneau d'administration.
+namespace MyApi.Authorization;
 
-Mon conseil : pour ton portail, cette table externe est adaptée si tu veux séparer le contenu des articles de leur sélection pour l'affichage. Si les articles mis en avant doivent être limités à exactement quatre, prévois une transaction ou une procédure pour gérer leur remplacement proprement.
+[AttributeUsage(
+    AttributeTargets.Method | AttributeTargets.Class,
+    AllowMultiple = false)]
+public class RequirePermissionAttribute : TypeFilterAttribute
+{
+    public RequirePermissionAttribute(string permission)
+        : base(typeof(PermissionAuthorizationFilter))
+    {
+        Arguments = new object[]
+        {
+            permission
+        };
+    }
+}
+
+Maintenant tu peux écrire :
+
+[RequirePermission("DOCUMENT_DELETE")]
+
+
+---
+
+4. PermissionAuthorizationFilter
+
+C'est ici que la vérification est exécutée.
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+
+namespace MyApi.Authorization;
+
+public class PermissionAuthorizationFilter : IAsyncAuthorizationFilter
+{
+    private readonly IPermissionService _permissionService;
+    private readonly string _permission;
+
+    public PermissionAuthorizationFilter(
+        IPermissionService permissionService,
+        string permission)
+    {
+        _permissionService = permissionService;
+        _permission = permission;
+    }
+
+    public async Task OnAuthorizationAsync(
+        AuthorizationFilterContext context)
+    {
+        // 1. Vérifier que l'utilisateur est authentifié
+        if (context.HttpContext.User?.Identity?.IsAuthenticated != true)
+        {
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        // 2. Récupérer l'utilisateur
+        var userId = context.HttpContext.User.Identity?.Name;
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        // 3. Vérifier la permission dans Oracle
+        var hasPermission =
+            await _permissionService.HasPermissionAsync(
+                userId,
+                _permission);
+
+        // 4. Refuser si nécessaire
+        if (!hasPermission)
+        {
+            context.Result = new ForbidResult();
+            return;
+        }
+
+        // 5. Autorisé → le controller sera exécuté
+    }
+}
+
+
+---
+
+5. IPermissionService
+
+namespace MyApi.Authorization;
+
+public interface IPermissionService
+{
+    Task<bool> HasPermissionAsync(
+        string userId,
+        string permission);
+}
+
+
+---
+
+6. PermissionService avec Oracle 19c
+
+Si tu utilises Oracle.ManagedDataAccess.Core :
+
+using Oracle.ManagedDataAccess.Client;
+
+namespace MyApi.Authorization;
+
+public class PermissionService : IPermissionService
+{
+    private readonly IConfiguration _configuration;
+
+    public PermissionService(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    public async Task<bool> HasPermissionAsync(
+        string userId,
+        string permission)
+    {
+        var connectionString =
+            _configuration.GetConnectionString("Oracle");
+
+        await using var connection =
+            new OracleConnection(connectionString);
+
+        await connection.OpenAsync();
+
+        const string sql = """
+            SELECT COUNT(1)
+            FROM USER_PERMISSION
+            WHERE USER_ID = :USER_ID
+              AND PERMISSION_CODE = :PERMISSION
+            """;
+
+        await using var command =
+            new OracleCommand(sql, connection);
+
+        command.BindByName = true;
+
+        command.Parameters.Add(
+            "USER_ID",
+            OracleDbType.Varchar2,
+            userId);
+
+        command.Parameters.Add(
+            "PERMISSION",
+            OracleDbType.Varchar2,
+            permission);
+
+        var result =
+            await command.ExecuteScalarAsync();
+
+        var count = Convert.ToInt32(result);
+
+        return count > 0;
+    }
+}
+
+
+---
+
+7. appsettings.json
+
+{
+  "ConnectionStrings": {
+    "Oracle": "User Id=MYUSER;Password=MYPASSWORD;Data Source=localhost:1521/ORCL"
+  }
+}
+
+Adapte évidemment MYUSER, MYPASSWORD et ORCL à ton environnement.
+
+
+---
+
+8. Enregistrer le service dans Program.cs
+
+using MyApi.Authorization;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+
+var app = builder.Build();
+
+app.UseAuthentication();
+
+app.UseAuthorization();
+
+app.MapControllers();
+
+app.Run();
+
+Si ton authentification existe déjà, tu conserves évidemment ta configuration actuelle de AddAuthentication().
+
+
+---
+
+9. Utilisation dans ton Controller
+
+Tu peux maintenant faire quelque chose de très propre :
+
+using Microsoft.AspNetCore.Mvc;
+using MyApi.Authorization;
+
+[ApiController]
+[Route("api/documents")]
+public class DocumentsController : ControllerBase
+{
+    [HttpGet]
+    [RequirePermission("DOCUMENT_VIEW")]
+    public IActionResult GetDocuments()
+    {
+        return Ok();
+    }
+
+    [HttpPost("upload")]
+    [RequirePermission("DOCUMENT_UPLOAD")]
+    public IActionResult Upload()
+    {
+        return Ok();
+    }
+
+    [HttpPut("{id}/rename")]
+    [RequirePermission("DOCUMENT_RENAME")]
+    public IActionResult Rename(int id)
+    {
+        return Ok();
+    }
+
+    [HttpDelete("{id}")]
+    [RequirePermission("DOCUMENT_DELETE")]
+    public IActionResult Delete(int id)
+    {
+        return Ok();
+    }
+}
+
+Ton Controller reste donc très lisible.
+
+
+---
+
+10. Exemple concret
+
+Supposons que Oracle contient :
+
+USER_ID    PERMISSION_CODE
+---------  -------------------
+SIDALI     DOCUMENT_VIEW
+SIDALI     DOCUMENT_UPLOAD
+SIDALI     DOCUMENT_RENAME
+
+Si Sidali appelle :
+
+GET /api/documents
+
+Le filtre vérifie :
+
+SIDALI + DOCUMENT_VIEW
+
+Oracle retourne 1.
+
+➡️ Controller exécuté.
+
+Mais pour :
+
+DELETE /api/documents/15
+
+Le filtre vérifie :
+
+SIDALI + DOCUMENT_DELETE
+
+Oracle retourne 0.
+
+➡️ API retourne :
+
+403 Forbidden
+
+Et le controller Delete() n'est jamais exécuté.
+
+
+---
+
+11. Pour ton système de dossiers : niveau supérieur
+
+Dans ton cas, je ferais même évoluer la conception.
+
+Tu as deux notions différentes :
+
+Permission générale
+        │
+        ├── DOCUMENT_VIEW
+        ├── DOCUMENT_UPLOAD
+        ├── DOCUMENT_RENAME
+        └── DOCUMENT_DELETE
+
+Permission sur un dossier
+        │
+        ├── Dossier Contrats
+        ├── Dossier Marchés
+        └── Dossier Confidentiel
+
+Ainsi, [RequirePermission("DOCUMENT_VIEW")] peut vérifier l'action générale, puis ton service peut également vérifier le folderId.
+
+Par exemple :
+
+[RequirePermission("DOCUMENT_DELETE")]
+[HttpDelete("{folderId}")]
+public async Task<IActionResult> DeleteFolder(int folderId)
+{
+    ...
+}
+
+Le filtre vérifie alors :
+
+Utilisateur
+     ↓
+DOCUMENT_DELETE
+     ↓
+folderId = 125
+     ↓
+Oracle
+     ↓
+Autorisé ?
+
+Cela permet de faire une vraie autorisation utilisateur + permission + dossier, ce qui correspond beaucoup mieux à ton système de fichiers.
+
+Point important : IAsyncAuthorizationFilter fonctionne très bien pour cette approche, mais pour une architecture ASP.NET Core plus avancée, IAuthorizationHandler/policies est généralement plus idiomatique. Pour ton besoin de permissions dynamiques stockées dans Oracle, ton [RequirePermission] personnalisé est néanmoins une solution claire et pratique.
+
+
+
+context.HttpContext.User.Identity?.Name retourne le nom de l'utilisateur authentifié, selon le mécanisme d'authentification configuré.
+
+Dans ton cas, avec Windows Authentication / Negotiate, ça donne généralement :
+
+DOMAIN\username
+
+Par exemple :
+
+var name = context.HttpContext.User.Identity?.Name;
+
+peut donner :
+
+MONDOMAINE\SIDALI
+
+Si tu veux seulement SIDALI
+
+Tu peux faire :
+
+var fullName = context.HttpContext.User.Identity?.Name;
+
+var username = fullName?
+    .Split('\\')
+    .Last();
+
+Résultat :
+
+fullName = "MONDOMAINE\SIDALI"
+username = "SIDALI"
+
+Et si tu utilises Negotiate
+
+Tu peux aussi inspecter les claims :
+
+foreach (var claim in context.HttpContext.User.Claims)
+{
+    Console.WriteLine($"{claim.Type} = {claim.Value}");
+}
+
+Tu peux alors voir des informations comme :
+
+name = MONDOMAINE\SIDALI
+
+ou selon la configuration :
+
+http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name = MONDOMAINE\SIDALI
+
+Pour ton système Oracle, je te conseille de normaliser une seule fois l'identifiant :
+
+var userId = context.HttpContext.User.Identity?.Name?
+    .Split('\\')
+    .Last();
+
+et ensuite utiliser userId pour chercher les permissions dans Oracle :
+
+SIDALI → DOCUMENT_VIEW
+SIDALI → DOCUMENT_UPLOAD
+SIDALI → DOCUMENT_RENAME
+
+Si tu veux, je peux aussi te montrer **exactement ce que contient `HttpContext.User` avec Negotiate**, notamment Identity.Name, IsAuthenticated, AuthenticationType et les Claims.

@@ -1,403 +1,82 @@
-Dans ton projet Next.js, la meilleure solution est d'utiliser un React Context + Provider.
+Dans ce cas, je te conseille de supprimer `api.ts`. Tu n'en as pas besoin.
 
-L'objectif est simple :
+Puisque ton API locale est déjà intégrée dans Next.js via `app/apilocal/.../route.ts`, tu peux utiliser directement `fetch()` dans tes services.
 
-* Appeler ton API AD une seule fois au démarrage de l'application.
+### 1\. Variables `.env.local`
 
-* Stocker les informations de l'utilisateur dans un état global.
+```env
+NEXT_PUBLIC_API_EXTERNAL=https://api.mondomaine.com
+NEXT_PUBLIC_IS_LOCAL=true
+```
 
-* Partager ces informations avec tous les composants.
+Pas besoin de `API_LOCAL`, puisque les routes locales utilisent directement Next.js.
 
-* Éviter les appels API répétitifs lors des changements de pages.
-
-Je te propose cette architecture.
-
-### 1\. Architecture
+### 2\. Architecture
 
 ```text
-
 src/
 ├── app/
-│   ├── layout.tsx
-│   └── providers.tsx
+│   ├── apilocal/
+│   │   ├── documents/
+│   │   │   └── route.ts
+│   │   └── actualites/
+│   │       └── route.ts
+│   │
+│   ├── documents/
+│   │   └── page.tsx
+│   │
+│   └── actualites/
+│       └── page.tsx
 │
-├── contexts/
-│   └── UserContext.tsx
+├── services/
+│   ├── documents.service.ts
+│   └── actualites.service.ts
 │
-├── hooks/
-│   └── useUser.ts
-│
-└── services/
-    └── userService.ts
+└── types/
 ```
 
-### 2\. Créer le UserContext
+### 3\. documents.service.ts
 
-`contexts/UserContext.tsx`
+```typescript
+const isLocal = process.env.NEXT_PUBLIC_IS_LOCAL === "true";
 
-```tsx
+const API = isLocal
+  ? "/apilocal"
+  : process.env.NEXT_PUBLIC_API_EXTERNAL;
 
-"use client";
+export const getDocuments = async () => {
+  const response = await fetch(`${API}/documents`);
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode
-} from "react";
+  if (!response.ok) throw new Error("API Error");
 
-interface User {
-  username: string;
-  fullName: string;
-  email: string;
-  // Ajouter tes propriétés AD
-}
-
-interface UserContextType {
-  user: User | null;
-  loading: boolean;
-  error: string | null;
-}
-
-const UserContext = createContext<UserContextType | undefined>(
-  undefined
-);
-
-export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchUser() {
-      try {
-        const response = await fetch("/api/user");
-
-        if (!response.ok) {
-          throw new Error("Erreur lors de la récupération de l'utilisateur");
-        }
-
-        const data = await response.json();
-        setUser(data);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Erreur inconnue"
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUser();
-  }, []);
-
-  return (
-    <UserContext.Provider value={{ user, loading, error }}>
-      {children}
-    </UserContext.Provider>
-  );
-}
-
-export function useUser() {
-  const context = useContext(UserContext);
-
-  if (!context) {
-    throw new Error("useUser doit être utilisé dans UserProvider");
-  }
-
-  return context;
-}
+  return response.json();
+};
 ```
 
-### 3\. Intégrer le Provider au démarrage
+### 4\. Fonctionnement
 
-`app/providers.tsx`
+Service Next.js
 
-```tsx
+getDocuments()
 
-"use client";
+IS_LOCAL = true
 
-import { UserProvider } from "@/contexts/UserContext";
+/apilocal
 
-export default function Providers({
-  children
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <UserProvider>
-      {children}
-    </UserProvider>
-  );
-}
+Route Handler Next.js
+
+IS_LOCAL = false
+
+API externe
+
+ASP.NET Core
+
+### 5\. Exemple d'appel
+
+```typescript
+const documents = await getDocuments();
 ```
 
-Puis dans `app/layout.tsx` :
+Mon conseil : garde uniquement les services métier et utilise `fetch()` directement. C'est plus simple et parfaitement adapté à ton architecture.
 
-```tsx
-
-import Providers from "./providers";
-
-export default function RootLayout({
-  children
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="fr">
-      <body>
-        <Providers>
-          {children}
-        </Providers>
-      </body>
-    </html>
-  );
-}
-```
-
-### 4\. Utiliser les informations dans n'importe quel composant
-
-Par exemple, dans ton Header :
-
-```tsx
-
-"use client";
-
-import { useUser } from "@/contexts/UserContext";
-
-export default function Header() {
-  const { user, loading } = useUser();
-
-  if (loading) return <p>Chargement...</p>;
-
-  return (
-    <header>
-      <h2>Bienvenue {user?.fullName}</h2>
-    </header>
-  );
-}
-```
-
-Dans un autre composant :
-
-```tsx
-
-"use client";
-
-import { useUser } from "@/contexts/UserContext";
-
-export default function Profile() {
-  const { user } = useUser();
-
-  return (
-    <div>
-      <p>{user?.username}</p>
-      <p>{user?.email}</p>
-    </div>
-  );
-}
-```
-
-### 5\. Comment fonctionne cette architecture ?
-
-Application Next.js
-
-`RootLayout`
-
-UserProvider
-
-Un seul appel API au montage
-
-`GET /api/user`
-
-Header
-
-useUser()
-
-Sidebar
-
-useUser()
-
-Profile
-
-useUser()
-
-Tous les composants partagent le même état React, sans refaire l'appel API.
-
-### 6\. Quelques points importants
-
-* Context API : partage les données globalement.
-
-* useState : conserve les informations utilisateur.
-
-* useEffect : déclenche le chargement initial.
-
-* useContext : permet aux composants de récupérer les données.
-
-Attention à deux détails :
-
-* En mode développement, React Strict Mode peut provoquer deux exécutions de l'effet. Pour garantir un seul appel même dans ce cas, on peut ajouter une Promise partagée ou utiliser une bibliothèque de cache.
-
-
-----
-
-Non. `useUser()` n'est pas asynchrone dans l'architecture proposée.
-
-Il retourne immédiatement les valeurs disponibles dans le Context :
-
-```tsx
-const { user, loading, error } = useUser();
-```
-
-C'est le `useEffect` dans `UserProvider` qui exécute l'appel API de manière asynchrone.
-
-### Le cycle d'exécution
-
-* L'application démarre.
-
-* `UserProvider` s'initialise avec `user = null` et `loading = true`.
-
-* `useEffect` appelle l'API AD.
-
-* L'API retourne les informations.
-
-* `setUser(data)` met à jour le Context.
-
-* Tous les composants utilisant `useUser()` reçoivent les nouvelles données.
-
-### Exemple
-
-```tsx
-const { user, loading } = useUser();
-
-if (loading) return <p>Chargement...</p>;
-
-if (!user) return <p>Utilisateur introuvable</p>;
-
-return <h1>Bonjour {user.fullName}</h1>;
-```
-
-À retenir :
-
-* `useUser()` : synchrone.
-
-* `fetchUser()` : asynchrone.
-
-* `UserProvider` : centralise le chargement et le partage des données.
-
-Tu n'as donc pas besoin de faire `await useUser()`.
-
-
-----
-
-
-* Ce mécanisme garantit un chargement par montage du Provider, pas nécessairement un seul appel pendant toute la durée de vie d'une session ou après un rechargement complet.
-
-Ma recommandation : pour ton application Next.js avec authentification Active Directory, commence avec Context API. Si tu souhaites ensuite gérer le cache, le rechargement automatique et la synchronisation des données, TanStack Query sera une excellente évolution.
-
-
-----
-C'est exactement le rôle de `user`, `loading` et `useUser()` dans ton Context.
-
-Tu peux utiliser les informations AD indépendamment dans chaque composant, avec une logique conditionnelle.
-
-### 1\. Afficher le nom dans le Header uniquement s'il existe
-
-```tsx
-"use client";
-
-import { useUser } from "@/contexts/UserContext";
-
-export default function Header() {
-  const { user, loading } = useUser();
-
-  if (loading) return null;
-
-  return (
-    <header>
-      {user?.nom && (
-        <span>{user.nom}</span>
-      )}
-    </header>
-  );
-}
-```
-
-Si le nom n'existe pas, rien ne sera affiché.
-
-### 2\. Remplir un PDF si les informations existent
-
-Dans ton composant PDF, tu peux récupérer les informations utilisateur et construire un objet avec des valeurs facultatives.
-
-```tsx
-"use client";
-
-import { useUser } from "@/contexts/UserContext";
-import { useEffect, useState } from "react";
-
-export default function EmployeePdf() {
-  const { user, loading } = useUser();
-
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (loading) return;
-
-    async function generatePdf() {
-      const employee = {
-        nom: user?.nom ?? "",
-        prenom: user?.prenom ?? "",
-        direction: user?.direction ?? "",
-      };
-
-      const url = await fillEmployeePdf(employee);
-
-      setPdfUrl(url);
-    }
-
-    generatePdf();
-  }, [user, loading]);
-
-  if (loading) return <p>Chargement des informations...</p>;
-
-  if (!pdfUrl) return <p>Préparation du PDF...</p>;
-
-  return (
-    <iframe
-      src={pdfUrl}
-      width="100%"
-      height="700px"
-    />
-  );
-}
-```
-
-Ici, si l'utilisateur existe, les champs sont remplis. Sinon, ils restent vides.
-
-### 3\. Le point important : ne pas confondre les trois états
-
-| État           | Comportement                                          |
-| -------------- | ----------------------------------------------------- |
-| loading = true | Attendre la réponse de l'API                          |
-| user = null    | Utilisateur introuvable ou informations indisponibles |
-| user.nom = ""  | Nom non renseigné                                     |
-
-Ma recommandation : ne génère pas le PDF tant que `loading` est `true`. Sinon, tu risques de générer un PDF vide avant même que les informations AD soient récupérées.
-
-### 4\. Une amélioration pour ton projet
-
-Puisque tu utilises déjà `pdf-lib` avec Next.js, je te conseille de séparer les responsabilités :
-
-* `UserProvider` : récupération et partage des informations AD.
-
-* `useUser` : accès aux informations utilisateur.
-
-* `fillEmployeeData` : remplissage des champs PDF.
-
-* `EmployeePdf` : affichage du PDF.
-
-Ainsi, tu peux utiliser les mêmes informations AD dans le Header, les formulaires et les documents PDF sans multiplier les appels API.
-
-
-
+Attention : les routes `app/apilocal` sont des Route Handlers Next.js, pas une API locale autonome. Elles peuvent servir de proxy vers ton API .NET. Si elles sont utilisées depuis le navigateur, protège également ces routes et leurs opérations.
